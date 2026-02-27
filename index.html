@@ -119,6 +119,19 @@
                 return costs;
             }, [materials, purchases]);
 
+            const totalPurchaseValue = useMemo(() => {
+                return purchases.reduce((sum, p) => sum + Number(p.totalBatchPrice), 0);
+            }, [purchases]);
+
+            const currentBOMTotal = useMemo(() => {
+                return newProduct.recipe.reduce((total, item) => {
+                    const price = Number(item.price) || 0;
+                    const amount = Number(item.amount) || 0;
+                    const wastage = Number(item.wastage) || 0;
+                    return total + (amount * price) / (1 - (wastage / 100));
+                }, 0);
+            }, [newProduct.recipe]);
+
             const calculateProductCOGS = (product) => {
                 let total = 0;
                 product.recipe.forEach(item => {
@@ -246,18 +259,22 @@
             // --- Views ---
             const DashboardView = () => (
                 <div className="flex-1 overflow-auto p-10 space-y-10">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        <div className="bg-white p-8 border border-slate-200 rounded-2xl card-shadow">
-                            <p className="text-sm font-medium text-slate-500 mb-1">Nguyên liệu trong danh mục</p>
-                            <p className="text-4xl font-bold text-slate-900 leading-none">{materials.length}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="bg-white p-6 border border-slate-200 rounded-2xl card-shadow">
+                            <p className="text-xs font-medium text-slate-500 mb-1">Danh mục hàng</p>
+                            <p className="text-3xl font-bold text-slate-900 leading-none">{materials.length}</p>
                         </div>
-                        <div className="bg-white p-8 border border-slate-200 rounded-2xl card-shadow">
-                            <p className="text-sm font-medium text-slate-500 mb-1">Tổng lượt nhập kho</p>
-                            <p className="text-4xl font-bold text-slate-900 leading-none">{purchases.length}</p>
+                        <div className="bg-white p-6 border border-slate-200 rounded-2xl card-shadow">
+                            <p className="text-sm font-medium text-slate-500 mb-1">Lượt nhập kho</p>
+                            <p className="text-3xl font-bold text-slate-900 leading-none">{purchases.length}</p>
                         </div>
-                        <div className="bg-white p-8 border border-slate-200 rounded-2xl card-shadow border-b-4 border-b-brand-500">
-                            <p className="text-sm font-medium text-brand-600 mb-1">Sản phẩm đã lập định mức</p>
-                            <p className="text-4xl font-bold text-brand-600 leading-none">{products.length}</p>
+                        <div className="bg-white p-6 border border-slate-200 rounded-2xl card-shadow">
+                            <p className="text-sm font-medium text-slate-500 mb-1">Tổng chi phí nhập hàng</p>
+                            <p className="text-3xl font-bold text-emerald-600 leading-none tabular-nums">{totalPurchaseValue.toLocaleString()} đ</p>
+                        </div>
+                        <div className="bg-white p-6 border border-slate-200 rounded-2xl card-shadow border-b-4 border-b-brand-500">
+                            <p className="text-sm font-medium text-brand-600 mb-1">Sản phẩm định mức</p>
+                            <p className="text-3xl font-bold text-brand-600 leading-none">{products.length}</p>
                         </div>
                     </div>
 
@@ -323,7 +340,7 @@
                                 </button>
                             ))}
                         </nav>
-                        <div className="p-6 text-[10px] font-medium text-slate-500 text-center border-t border-slate-700/50 opacity-60">Version 16.0 Elegant</div>
+                        <div className="p-6 text-[10px] font-medium text-slate-500 text-center border-t border-slate-700/50 opacity-60">Version 16.1 Elegant</div>
                     </aside>
 
                     {/* Main Content */}
@@ -451,6 +468,15 @@
                                                             </tr>
                                                         ))}
                                                     </tbody>
+                                                    {purchases.length > 0 && (
+                                                        <tfoot>
+                                                            <tr className="bg-slate-50/80 font-bold border-t border-slate-200">
+                                                                <td colSpan="3" className="px-8 py-4 text-slate-600 text-right uppercase tracking-wider text-xs">Tổng chi phí nhập kho:</td>
+                                                                <td className="px-8 py-4 text-right text-emerald-600 text-lg tabular-nums">{totalPurchaseValue.toLocaleString()} đ</td>
+                                                                <td></td>
+                                                            </tr>
+                                                        </tfoot>
+                                                    )}
                                                 </table>
                                             </div>
                                         </div>
@@ -516,7 +542,15 @@
                                                         ))}
                                                         {newProduct.recipe.length === 0 && <div className="py-12 text-center text-slate-300 text-sm font-medium italic">Chọn nguyên liệu phía trên để lập công thức</div>}
                                                     </div>
-                                                    <button onClick={saveProduct} className="w-full bg-brand-600 text-white py-4 rounded-xl font-bold text-sm shadow-lg btn-transition hover:bg-brand-700 mt-8">Lưu sản phẩm định mức</button>
+
+                                                    {newProduct.recipe.length > 0 && (
+                                                        <div className="mt-6 p-4 bg-brand-50 border border-brand-100 rounded-xl flex justify-between items-center">
+                                                            <span className="text-xs font-bold text-brand-600 uppercase tracking-wider">Tổng giá vốn tạm tính:</span>
+                                                            <span className="text-lg font-bold text-brand-600 tabular-nums">{Math.round(currentBOMTotal).toLocaleString()} đ</span>
+                                                        </div>
+                                                    )}
+
+                                                    <button onClick={saveProduct} className="w-full bg-brand-600 text-white py-4 rounded-xl font-bold text-sm shadow-lg btn-transition hover:bg-brand-700 mt-6">Lưu sản phẩm định mức</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -537,8 +571,8 @@
                                                             <button onClick={() => { if(confirm("Xóa sản phẩm này?")) setProducts(products.filter(pr => pr.id !== p.id)); }} className="text-slate-200 hover:text-red-500 font-bold text-xl px-2 transition-colors">✕</button>
                                                         </div>
 
-                                                        <div className="bg-slate-900 p-8 rounded-2xl mb-8 flex flex-col items-center">
-                                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mb-2">Tổng giá vốn dự kiến</p>
+                                                        <div className="bg-slate-900 p-8 rounded-2xl mb-8 flex flex-col items-center border border-slate-800">
+                                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mb-2 text-center">Tổng giá vốn nguyên liệu (COGS)</p>
                                                             <p className="text-4xl font-bold text-brand-500 tabular-nums tracking-tighter">
                                                                 {Math.round(cogs).toLocaleString()} <span className="text-lg font-medium">đ</span>
                                                             </p>
