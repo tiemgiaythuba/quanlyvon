@@ -25,16 +25,18 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; -webkit-font-smoothing: antialiased; color: #1e293b; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; -webkit-font-smoothing: antialiased; color: #1e293b; font-style: normal !important; }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .nav-active { background-color: #fef2e0; color: #ea580c !important; border-right: 3px solid #ea580c; }
         .input-focus:focus { outline: none; border-color: #ea580c; box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.1); }
         .card-shadow { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03); }
         .btn-transition { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        * { font-style: normal !important; }
     </style>
 </head>
-<body class="h-screen overflow-hidden">
+<body class="h-screen overflow-hidden text-slate-700">
     <div id="root" class="h-full"></div>
 
     <script type="text/babel">
@@ -49,14 +51,24 @@
             const [showNotification, setShowNotification] = useState(null);
             const [isLoading, setIsLoading] = useState(false);
             
+            // Trạng thái chỉnh sửa
             const [editingMatId, setEditingMatId] = useState(null);
+            const [editingPurchaseId, setEditingPurchaseId] = useState(null);
+            const [editingProductId, setEditingProductId] = useState(null);
             const [newProduct, setNewProduct] = useState({ name: '', recipe: [] });
+            
             const fileInputRef = useRef(null);
+            const purchaseFormRef = useRef(null);
 
             const notify = (msg) => {
                 setShowNotification(msg);
                 setTimeout(() => setShowNotification(null), 3500);
             };
+
+            // Sắp xếp vật tư theo bảng chữ cái A-Z
+            const sortedMaterials = useMemo(() => {
+                return [...materials].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+            }, [materials]);
 
             const fetchData = async () => {
                 if (!sheetUrl) return;
@@ -64,17 +76,15 @@
                 try {
                     const response = await fetch(sheetUrl);
                     const data = await response.json();
-                    
                     const parsedProducts = (data.products || []).map(p => ({
                         ...p,
                         recipe: typeof p.recipe === 'string' ? JSON.parse(p.recipe) : (p.recipe || [])
                     }));
-
                     setMaterials(data.materials || []);
                     setPurchases(data.purchases || []);
                     setProducts(parsedProducts);
                 } catch (error) {
-                    notify("Không thể lấy dữ liệu từ Google Sheets");
+                    notify("Không thể lấy dữ liệu từ Sheets");
                 } finally {
                     setIsLoading(false);
                 }
@@ -88,7 +98,7 @@
             }, [sheetUrl]);
 
             const postToSheet = async (payload) => {
-                if (!sheetUrl) return notify("Vui lòng cài đặt URL Sheet");
+                if (!sheetUrl) return notify("Cần cài đặt URL Google Sheets");
                 setIsLoading(true);
                 try {
                     await fetch(sheetUrl, {
@@ -140,7 +150,71 @@
                 }, 0);
             };
 
-            // --- CSV Smart Import ---
+            // --- Xử lý sự kiện ---
+            const addMaterial = async (e) => {
+                e.preventDefault();
+                const name = e.target.name.value.trim();
+                const unit = e.target.unit.value.trim();
+                if (!name || !unit) return;
+                const id = editingMatId || Date.now().toString();
+                const action = editingMatId ? 'update' : 'add';
+                await postToSheet({ type: 'materials', action, id, row: [id, name, unit] });
+                setEditingMatId(null);
+                e.target.reset();
+                notify(action === 'update' ? "Đã cập nhật danh mục" : "Đã thêm nguyên liệu");
+                setTimeout(fetchData, 1500);
+            };
+
+            const addPurchase = async (e) => {
+                e.preventDefault();
+                const f = e.target;
+                const id = editingPurchaseId || Date.now().toString();
+                const action = editingPurchaseId ? 'update' : 'add';
+                await postToSheet({
+                    type: 'purchases', action, id,
+                    row: [id, f.materialId.value, f.quantity.value, f.totalBatchPrice.value, f.note.value, f.date.value || new Date().toISOString().split('T')[0]]
+                });
+                f.reset();
+                setEditingPurchaseId(null);
+                notify("Đang đồng bộ dữ liệu nhập kho...");
+                setTimeout(fetchData, 1500);
+            };
+
+            const startEditPurchase = (p) => {
+                setEditingPurchaseId(p.id);
+                const f = purchaseFormRef.current;
+                if (f) {
+                    f.materialId.value = p.materialId;
+                    f.quantity.value = p.quantity;
+                    f.totalBatchPrice.value = p.totalBatchPrice;
+                    f.note.value = p.note;
+                    f.date.value = p.date;
+                }
+            };
+
+            const saveProduct = async () => {
+                if (!newProduct.name || newProduct.recipe.length === 0) return notify("Vui lòng điền đủ thông tin");
+                const id = editingProductId || Date.now().toString();
+                const action = editingProductId ? 'update' : 'add';
+                await postToSheet({ type: 'products', action, id, row: [id, newProduct.name, JSON.stringify(newProduct.recipe)] });
+                setNewProduct({ name: '', recipe: [] });
+                setEditingProductId(null);
+                notify("Đang cập nhật sản phẩm...");
+                setTimeout(fetchData, 1500);
+            };
+
+            const startEditProduct = (p) => {
+                setEditingProductId(p.id);
+                setNewProduct({ name: p.name, recipe: p.recipe });
+            };
+
+            const deleteItem = async (type, id) => {
+                if (!confirm("Bạn muốn xóa mục này vĩnh viễn khỏi Sheets?")) return;
+                await postToSheet({ type, action: 'delete', id });
+                notify("Đang xử lý xóa...");
+                setTimeout(fetchData, 1500);
+            };
+
             const handleFileUpload = async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -149,88 +223,22 @@
                     const text = event.target.result;
                     const rows = text.split('\n').map(r => r.trim()).filter(r => r);
                     if (rows.length < 2) return;
-
                     const header = rows[0].toLowerCase();
                     const isReportFormat = header.includes("nguyên liệu") && header.includes("giá bình quân");
-
-                    notify("Đang xử lý dữ liệu...");
-                    let importedCount = 0;
-
+                    notify("Đang nạp dữ liệu...");
                     for (let i = 1; i < rows.length; i++) {
                         const columns = rows[i].split(/[;,]/);
                         if (isReportFormat && columns.length >= 3) {
-                            // Định dạng: Nguyên liệu;Đơn vị;Giá bình quân
-                            const [name, unit, avgPrice] = columns.map(c => c.trim().replace(/^"|"$/g, ''));
-                            
-                            // 1. Tạo nguyên liệu mới
+                            const [name, unit, price] = columns.map(c => c.trim().replace(/^"|"$/g, ''));
                             const mId = Date.now().toString() + i;
                             await postToSheet({ type: 'materials', action: 'add', row: [mId, name, unit] });
-                            
-                            // 2. Tạo đợt nhập khống để gán giá
-                            await postToSheet({ 
-                                type: 'purchases', 
-                                action: 'add', 
-                                row: [mId + "_p", mId, 1, avgPrice, "Nhập từ file báo cáo", new Date().toISOString().split('T')[0]] 
-                            });
-                            importedCount++;
-                        } else if (columns.length >= 4) {
-                            // Định dạng: Ngày;Tên hàng;Số lượng;Tổng tiền;Ghi chú
-                            const [date, matName, qty, totalPrice, note] = columns.map(c => c ? c.trim().replace(/^"|"$/g, '') : '');
-                            const material = materials.find(m => m.name.toLowerCase().trim() === matName.toLowerCase().trim());
-                            if (material) {
-                                await postToSheet({
-                                    type: 'purchases',
-                                    action: 'add',
-                                    row: [Date.now().toString() + i, material.id, qty, totalPrice, note || '', date]
-                                });
-                                importedCount++;
-                            }
+                            await postToSheet({ type: 'purchases', action: 'add', row: [mId + "p", mId, 1, price, "Nhập từ báo cáo", new Date().toISOString().split('T')[0]] });
                         }
                     }
-                    notify(`✅ Đã đồng bộ thành công ${importedCount} mục vào Sheet`);
                     setTimeout(fetchData, 2000);
                 };
                 reader.readAsText(file);
                 e.target.value = null;
-            };
-
-            // --- Basic Handlers ---
-            const addMaterial = async (e) => {
-                e.preventDefault();
-                const name = e.target.name.value.trim();
-                const unit = e.target.unit.value.trim();
-                if (!name || !unit) return;
-                await postToSheet({ type: 'materials', action: 'add', row: [Date.now().toString(), name, unit] });
-                e.target.reset();
-                notify("Đã gửi yêu cầu thêm nguyên liệu...");
-                setTimeout(fetchData, 1500);
-            };
-
-            const addPurchase = async (e) => {
-                e.preventDefault();
-                const f = e.target;
-                await postToSheet({
-                    type: 'purchases', action: 'add',
-                    row: [Date.now().toString(), f.materialId.value, f.quantity.value, f.totalBatchPrice.value, f.note.value, f.date.value || new Date().toISOString().split('T')[0]]
-                });
-                f.reset();
-                notify("Đã gửi dữ liệu nhập kho...");
-                setTimeout(fetchData, 1500);
-            };
-
-            const saveProduct = async () => {
-                if (!newProduct.name || newProduct.recipe.length === 0) return notify("Thiếu thông tin");
-                await postToSheet({ type: 'products', action: 'add', row: [Date.now().toString(), newProduct.name, JSON.stringify(newProduct.recipe)] });
-                setNewProduct({ name: '', recipe: [] });
-                notify("Đang lưu định mức...");
-                setTimeout(fetchData, 1500);
-            };
-
-            const deleteItem = async (type, id) => {
-                if (!confirm("Xóa mục này khỏi Google Sheets?")) return;
-                await postToSheet({ type, action: 'delete', id });
-                notify("Đang xóa...");
-                setTimeout(fetchData, 1500);
             };
 
             const addToRecipe = (id) => {
@@ -239,159 +247,215 @@
                 setNewProduct({ ...newProduct, recipe: [...newProduct.recipe, { materialId: id, name: mat.name, amount: 1, price: Math.round(materialCosts[id] || 0), wastage: 0, unit: mat.unit }] });
             };
 
-            // --- UI Components ---
-            const Sidebar = () => (
-                <aside className="w-64 bg-slate-900 flex-shrink-0 flex flex-col z-20 shadow-xl">
-                    <div className="h-28 flex items-center px-8 border-b border-slate-800">
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1 flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${sheetUrl ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`}></span>
-                                {sheetUrl ? 'Google Sheets' : 'Chưa kết nối'}
-                            </span>
-                            <h1 className="text-white font-extrabold text-xl tracking-tight leading-none">tiệm giấy <span className="text-brand-500">Thứ Ba</span></h1>
+            // --- Giao diện ---
+            const DashboardView = () => (
+                <div className="flex-1 overflow-auto p-10 space-y-10">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="bg-white p-8 border border-slate-200 rounded-2xl card-shadow text-center">
+                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Vật tư</p>
+                            <p className="text-3xl font-bold text-slate-900 leading-none">{materials.length}</p>
+                        </div>
+                        <div className="bg-white p-8 border border-slate-200 rounded-2xl card-shadow text-center">
+                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Lượt nhập</p>
+                            <p className="text-3xl font-bold text-slate-900 leading-none">{purchases.length}</p>
+                        </div>
+                        <div className="bg-white p-8 border border-slate-200 rounded-2xl card-shadow text-center">
+                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tổng vốn đầu tư</p>
+                            <p className="text-3xl font-bold text-emerald-600 leading-none tabular-nums">{totalPurchaseValue.toLocaleString()} đ</p>
+                        </div>
+                        <div className="bg-white p-8 border border-slate-200 rounded-2xl card-shadow border-b-4 border-b-brand-500 text-center">
+                            <p className="text-[11px] font-bold text-brand-600 uppercase tracking-widest mb-1">Sản phẩm định mức</p>
+                            <p className="text-3xl font-bold text-brand-600 leading-none">{products.length}</p>
                         </div>
                     </div>
-                    <nav className="flex-1 py-8">
-                        {[{ id: 'dashboard', label: 'Báo cáo tổng quan' }, { id: 'inventory', label: 'Kho nguyên liệu' }, { id: 'products', label: 'Định mức sản phẩm' }, { id: 'settings', label: 'Cấu hình Sheet' }].map(item => (
-                            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center px-8 py-4 transition-all font-semibold text-sm text-left text-slate-400 hover:text-white hover:bg-slate-800/50 ${activeTab === item.id ? 'nav-active' : ''}`}>{item.label}</button>
-                        ))}
-                    </nav>
-                    <div className="p-6 text-[10px] font-medium text-slate-500 text-center border-t border-slate-800 opacity-60">Version 16.5 Reliable</div>
-                </aside>
+                    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden card-shadow">
+                        <div className="px-8 py-5 border-b font-bold text-slate-700 bg-slate-50/50 flex justify-between items-center">
+                            <span>Bảng giá vốn nguyên liệu bình quân</span>
+                            <button onClick={() => {
+                                const bom = '\uFEFF';
+                                const csv = "Nguyên liệu;Đơn vị;Giá bình quân\n" + sortedMaterials.map(m => `${m.name};${m.unit};${Math.round(materialCosts[m.id])}`).join("\n");
+                                const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+                                const link = document.createElement("a");
+                                link.href = URL.createObjectURL(blob); link.download = "bao_cao_gia.csv"; link.click();
+                            }} className="text-[10px] font-bold text-brand-600 uppercase tracking-widest hover:underline underline-offset-4">Tải Excel</button>
+                        </div>
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 border-b uppercase tracking-wider">
+                                <tr><th className="px-10 py-5">Tên nguyên liệu</th><th className="px-10 py-5">Đơn vị</th><th className="px-10 py-5 text-right">Giá bình quân hiện tại</th></tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-sm">
+                                {sortedMaterials.map(m => (
+                                    <tr key={m.id} className="hover:bg-slate-50 transition">
+                                        <td className="px-10 py-5 font-semibold text-slate-700">{m.name}</td>
+                                        <td className="px-10 py-5 text-slate-400 font-medium">{m.unit}</td>
+                                        <td className="px-10 py-5 text-right font-bold text-brand-600 tabular-nums">{Math.round(materialCosts[m.id] || 0).toLocaleString()} đ</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             );
 
             return (
                 <div className="flex h-full relative">
-                    <Sidebar />
-                    <main className="flex-1 flex flex-col min-w-0 bg-slate-50 h-full overflow-hidden">
+                    {/* Sidebar */}
+                    <aside className="w-64 bg-slate-900 flex-shrink-0 flex flex-col z-20 shadow-xl">
+                        <div className="h-28 flex items-center px-10 border-b border-slate-800">
+                            <div className="flex flex-col text-left">
+                                <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+                                    <span className={`w-1.5 h-1.5 rounded-full ${sheetUrl ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}></span>
+                                    {sheetUrl ? 'Google Sheet Online' : 'No Connect'}
+                                </span>
+                                <h1 className="text-white font-extrabold text-xl tracking-tight leading-none">tiệm giấy <span className="text-brand-500">Thứ Ba</span></h1>
+                            </div>
+                        </div>
+                        <nav className="flex-1 py-8">
+                            {[
+                                { id: 'dashboard', label: 'Báo cáo tổng quan' }, 
+                                { id: 'inventory', label: 'Kho vật tư' }, 
+                                { id: 'products', label: 'Định mức sản phẩm' }, 
+                                { id: 'settings', label: 'Cấu hình Sheet' }
+                            ].map(item => (
+                                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center px-8 py-4 transition-all font-semibold text-sm text-left text-slate-400 hover:text-white hover:bg-slate-800/50 ${activeTab === item.id ? 'nav-active' : ''}`}>{item.label}</button>
+                            ))}
+                        </nav>
+                        <div className="p-6 text-[10px] font-medium text-slate-500 text-center border-t border-slate-800 opacity-60">Version 17.1 Stable</div>
+                    </aside>
+
+                    {/* Nội dung chính */}
+                    <main className="flex-1 flex flex-col min-w-0 bg-slate-50 h-full overflow-hidden text-left">
                         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-10 shadow-sm z-10">
-                            <h2 className="font-bold text-lg text-slate-700 uppercase tracking-tight">
-                                {activeTab === 'dashboard' ? 'Thống kê giá vốn' : activeTab === 'inventory' ? 'Vật tư & Nhập kho' : activeTab === 'settings' ? 'Cài đặt hệ thống' : 'Định mức thành phẩm'}
+                            <h2 className="font-bold text-lg text-slate-700 tracking-tight">
+                                {activeTab === 'dashboard' ? 'Thống kê chi phí' : activeTab === 'inventory' ? 'Vật tư chi tiết' : activeTab === 'settings' ? 'Kết nối hệ thống' : 'Cấu trúc định mức sản phẩm'}
                             </h2>
-                            {isLoading && <span className="text-xs font-bold text-brand-500 animate-pulse italic">Đang đồng bộ Sheets...</span>}
+                            {isLoading && <span className="text-xs font-bold text-brand-500 animate-pulse italic">Đồng bộ Sheets...</span>}
                         </header>
 
                         <div className="flex-1 overflow-auto">
                             {!sheetUrl && activeTab !== 'settings' ? (
-                                <div className="h-full flex flex-col items-center justify-center p-20 text-center">
-                                    <div className="text-6xl mb-6 opacity-20">📊</div>
-                                    <h3 className="text-2xl font-bold text-slate-400 mb-4 tracking-tight">Kết nối dữ liệu Cloud</h3>
-                                    <button onClick={() => setActiveTab('settings')} className="bg-brand-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg">Cài đặt Google Sheets ngay</button>
+                                <div className="h-full flex flex-col items-center justify-center text-center p-20">
+                                    <h3 className="text-2xl font-bold text-slate-400 mb-6">Liên kết Google Sheets để sử dụng ứng dụng</h3>
+                                    <button onClick={() => setActiveTab('settings')} className="bg-brand-500 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-brand-500/20">Đi tới Cấu hình</button>
                                 </div>
                             ) : (
                                 <>
                                     {activeTab === 'settings' && (
                                         <div className="p-10 max-w-2xl space-y-6">
                                             <div className="bg-white p-8 rounded-[2rem] border border-slate-200 card-shadow">
-                                                <h3 className="font-bold text-slate-800 text-xl mb-4">🔗 Đường dẫn Google Sheets</h3>
-                                                <p className="text-sm text-slate-500 mb-6 leading-relaxed">Nhập link Apps Script để quản lý dữ liệu tập trung.</p>
+                                                <h3 className="font-bold text-slate-800 text-xl mb-4">Kết nối Google Sheets</h3>
                                                 <div className="space-y-4">
-                                                    <input value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} placeholder="https://script.google.com/macros/s/..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-medium text-sm" />
-                                                    <button onClick={fetchData} className="w-full bg-slate-800 text-white py-3 rounded-xl font-bold text-sm">Cập nhật & Tải lại</button>
+                                                    <input value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} placeholder="Nhập Web App URL..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-medium text-sm" />
+                                                    <button onClick={fetchData} className="w-full bg-slate-800 text-white py-3 rounded-xl font-bold text-sm">Tải dữ liệu mới nhất</button>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                    
-                                    {activeTab === 'dashboard' && (
-                                        <div className="p-10 space-y-10">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                                <div className="bg-white p-6 border border-slate-200 rounded-2xl card-shadow">
-                                                    <p className="text-xs font-medium text-slate-500">Vật tư</p>
-                                                    <p className="text-3xl font-bold text-slate-900 mt-1">{materials.length}</p>
-                                                </div>
-                                                <div className="bg-white p-6 border border-slate-200 rounded-2xl card-shadow">
-                                                    <p className="text-xs font-medium text-slate-500">Lượt nhập</p>
-                                                    <p className="text-3xl font-bold text-slate-900 mt-1">{purchases.length}</p>
-                                                </div>
-                                                <div className="bg-white p-6 border border-slate-200 rounded-2xl card-shadow">
-                                                    <p className="text-xs font-medium text-slate-500">Tổng vốn nhập</p>
-                                                    <p className="text-3xl font-bold text-emerald-600 mt-1 tabular-nums">{totalPurchaseValue.toLocaleString()} đ</p>
-                                                </div>
-                                                <div className="bg-white p-6 border border-slate-200 rounded-2xl card-shadow border-b-4 border-b-brand-500">
-                                                    <p className="text-xs font-medium text-brand-600">Định mức SP</p>
-                                                    <p className="text-3xl font-bold text-brand-600 mt-1">{products.length}</p>
-                                                </div>
-                                            </div>
-                                            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden card-shadow">
-                                                <div className="px-8 py-5 border-b font-bold text-slate-700 bg-slate-50/50">Bảng giá vốn nguyên liệu bình quân</div>
-                                                <table className="w-full text-left">
-                                                    <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 border-b uppercase">
-                                                        <tr><th className="px-8 py-4">Tên nguyên liệu</th><th className="px-8 py-4 text-right">Giá bình quân / đơn vị</th></tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-100">
-                                                        {materials.map(m => (
-                                                            <tr key={m.id} className="hover:bg-slate-50 transition">
-                                                                <td className="px-8 py-4 font-semibold text-slate-700">{m.name} ({m.unit})</td>
-                                                                <td className="px-8 py-4 text-right font-bold text-brand-600 tabular-nums">{Math.round(materialCosts[m.id] || 0).toLocaleString()} đ</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
                                             </div>
                                         </div>
                                     )}
 
+                                    {activeTab === 'dashboard' && <DashboardView />}
+
                                     {activeTab === 'inventory' && (
                                         <div className="p-10 grid grid-cols-1 xl:grid-cols-3 gap-10">
                                             <div className="space-y-8">
-                                                <div className="bg-white p-8 rounded-2xl border border-slate-200 card-shadow">
-                                                    <h3 className="font-bold text-slate-800 mb-6">Nguyên liệu mới</h3>
-                                                    <form onSubmit={addMaterial} className="space-y-4">
-                                                        <input name="name" placeholder="Tên hàng..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-semibold text-sm" required />
-                                                        <input name="unit" placeholder="Đơn vị tính..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-semibold text-sm" required />
-                                                        <button className="w-full bg-slate-800 text-white py-3 rounded-xl font-bold text-sm">Lưu danh mục</button>
+                                                <div className="bg-white p-8 rounded-2xl border border-slate-200 card-shadow text-left">
+                                                    <h3 className="font-bold text-slate-800 mb-6 text-base pb-3 border-b">{editingMatId ? 'Sửa tên mặt hàng' : 'Thêm nguyên liệu mới'}</h3>
+                                                    <form onSubmit={addMaterial} className="space-y-5">
+                                                        <input name="name" defaultValue={editingMatId ? materials.find(m => String(m.id) === String(editingMatId))?.name : ''} placeholder="Tên hàng (Giấy, Gỗ...)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-bold" required />
+                                                        <input name="unit" defaultValue={editingMatId ? materials.find(m => String(m.id) === String(editingMatId))?.unit : ''} placeholder="Đơn vị tính..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-bold" required />
+                                                        <div className="flex gap-2">
+                                                            <button className="flex-1 bg-slate-800 text-white py-3 rounded-xl font-bold text-sm">Lưu danh mục</button>
+                                                            {editingMatId && <button type="button" onClick={() => setEditingMatId(null)} className="px-5 py-3 bg-slate-100 rounded-xl text-xs font-bold">Hủy</button>}
+                                                        </div>
                                                     </form>
                                                 </div>
-                                                <div className="bg-white p-8 rounded-2xl border border-slate-200 card-shadow">
-                                                    <h3 className="font-bold text-emerald-700 mb-6">Ghi nhận nhập hàng</h3>
-                                                    <form onSubmit={addPurchase} className="space-y-4">
-                                                        <select name="materialId" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-bold appearance-none text-sm" required>
-                                                            <option value="">-- Chọn vật tư --</option>
-                                                            {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+
+                                                <div className="bg-white p-8 rounded-2xl border border-slate-200 card-shadow shadow-emerald-50 border-t-4 border-t-emerald-500 text-left">
+                                                    <h3 className="font-bold text-emerald-700 mb-6 text-base pb-3 border-b">{editingPurchaseId ? 'Sửa phiếu nhập kho' : 'Ghi nhận nhập hàng mới'}</h3>
+                                                    <form onSubmit={addPurchase} ref={purchaseFormRef} className="space-y-5">
+                                                        <select name="materialId" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-bold appearance-none cursor-pointer text-sm" required>
+                                                            <option value="">-- Chọn vật tư (A-Z) --</option>
+                                                            {sortedMaterials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>)}
                                                         </select>
                                                         <div className="grid grid-cols-2 gap-4">
-                                                            <input name="quantity" type="number" step="any" placeholder="SL" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-bold" required />
-                                                            <input name="totalBatchPrice" type="number" placeholder="Tổng VNĐ" className="w-full px-4 py-3 bg-brand-50 border border-brand-100 rounded-xl input-focus font-bold text-brand-600" required />
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase tracking-wider">Số lượng nhập</label>
+                                                                <input name="quantity" type="number" step="any" placeholder="0.00" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-bold text-lg" required />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase tracking-wider">TỔNG GIÁ ĐỢT HÀNG</label>
+                                                                <input name="totalBatchPrice" type="number" placeholder="Tổng đ" className="w-full px-4 py-3 bg-brand-50 border border-brand-100 rounded-xl input-focus font-bold text-brand-600 text-lg" required />
+                                                            </div>
                                                         </div>
-                                                        <input name="note" placeholder="Ghi chú thêm..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-medium text-sm" />
-                                                        <input name="date" type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-semibold" defaultValue={new Date().toISOString().split('T')[0]} />
-                                                        <button className="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-bold text-sm shadow-md">Xác nhận nhập kho</button>
+                                                        <input name="note" placeholder="Ghi chú (Lô hàng, Màu sắc...)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-medium text-sm" />
+                                                        <input name="date" type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl input-focus font-bold text-sm" defaultValue={new Date().toISOString().split('T')[0]} />
+                                                        <div className="flex gap-2">
+                                                            <button className="flex-1 bg-emerald-600 text-white py-3.5 rounded-xl font-bold text-sm shadow-lg">Xác nhận nhập kho</button>
+                                                            {editingPurchaseId && <button type="button" onClick={() => { setEditingPurchaseId(null); purchaseFormRef.current.reset(); }} className="px-5 py-3 bg-slate-100 rounded-xl text-xs font-bold">Hủy</button>}
+                                                        </div>
                                                     </form>
                                                 </div>
                                             </div>
-                                            <div className="xl:col-span-2 space-y-10">
-                                                <div className="bg-white rounded-2xl border border-slate-200 card-shadow overflow-hidden flex flex-col max-h-[700px]">
-                                                    <div className="px-8 py-6 border-b bg-slate-50/50 flex justify-between items-center">
-                                                        <span className="font-bold text-slate-700">Nhật ký nhập kho chi tiết</span>
-                                                        <div className="flex gap-4">
+
+                                            <div className="xl:col-span-2 space-y-10 flex flex-col h-full overflow-hidden text-left">
+                                                <div className="bg-white rounded-[2rem] border border-slate-200 card-shadow overflow-hidden flex flex-col h-1/3 min-h-[250px]">
+                                                    <div className="px-8 py-5 border-b bg-slate-50/50 font-bold text-sm flex justify-between items-center text-slate-600">
+                                                        <span>Danh mục vật tư cơ bản (A-Z)</span>
+                                                    </div>
+                                                    <div className="overflow-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-slate-100">
+                                                        {sortedMaterials.map(m => (
+                                                            <div key={m.id} className="bg-white p-6 flex justify-between items-center group transition hover:bg-slate-50">
+                                                                <div>
+                                                                    <p className="font-bold text-slate-800 text-lg leading-tight">{m.name}</p>
+                                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{m.unit}</p>
+                                                                </div>
+                                                                <div className="flex gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <button onClick={() => setEditingMatId(m.id)} className="text-[10px] font-bold text-brand-600 uppercase">Sửa</button>
+                                                                    <button onClick={() => deleteItem('materials', m.id)} className="text-[10px] font-bold text-red-400 uppercase">✕</button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-white rounded-[2rem] border border-slate-200 card-shadow overflow-hidden flex flex-col flex-grow">
+                                                    <div className="px-10 py-7 border-b bg-slate-50/50 flex justify-between items-center text-left">
+                                                        <span className="font-bold text-slate-700 text-base">Nhật ký nhập hàng chi tiết</span>
+                                                        <div className="flex gap-4 items-center">
                                                             <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
-                                                            <button onClick={() => fileInputRef.current.click()} className="text-[10px] font-bold bg-brand-50 text-brand-600 px-3 py-1.5 rounded-lg border border-brand-200 hover:bg-brand-500 hover:text-white transition-all uppercase">📥 Nhập dữ liệu CSV</button>
-                                                            <button onClick={() => { if(confirm("Xóa toàn bộ lịch sử?")) setPurchases([]); }} className="text-[10px] font-bold text-red-400 px-2 transition uppercase">Xóa lịch sử</button>
+                                                            <button onClick={() => fileInputRef.current.click()} className="text-[10px] font-bold bg-white border px-3 py-1.5 rounded-xl hover:bg-slate-50 transition-all uppercase tracking-tighter">📥 Nhập Excel</button>
+                                                            <button onClick={() => { if(confirm("Xóa sạch lịch sử nhập trên máy này?")) setPurchases([]); }} className="text-[10px] font-bold text-red-400 uppercase">Dọn dẹp</button>
                                                         </div>
                                                     </div>
-                                                    <div className="overflow-auto flex-1">
+                                                    <div className="overflow-auto flex-1 custom-scrollbar">
                                                         <table className="w-full text-left text-sm">
                                                             <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 border-b sticky top-0 uppercase tracking-wider">
-                                                                <tr><th>Ngày</th><th>Mô tả hàng</th><th className="text-right">SL</th><th className="text-right">Tổng tiền</th><th></th></tr>
+                                                                <tr><th className="px-10 py-5">Ngày</th><th>Vật tư & Ghi chú</th><th className="text-right">SL</th><th className="text-right">Tổng tiền</th><th className="w-24"></th></tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-100">
                                                                 {[...purchases].reverse().map(p => (
-                                                                    <tr key={p.id} className="hover:bg-slate-50 group">
-                                                                        <td className="px-8 py-5 text-slate-400 font-medium text-xs">{p.date}</td>
-                                                                        <td className="px-8 py-5">
-                                                                            <span className="font-bold text-slate-700">{materials.find(m => String(m.id) === String(p.materialId))?.name || '...'}</span>
-                                                                            <span className="text-[10px] block font-medium text-brand-600 italic">{p.note}</span>
+                                                                    <tr key={p.id} className="hover:bg-slate-50 transition group">
+                                                                        <td className="px-10 py-6 text-slate-400 font-medium text-xs tabular-nums">{p.date}</td>
+                                                                        <td className="px-10 py-6 text-left">
+                                                                            <span className="font-bold text-slate-800 text-base">{materials.find(m => String(m.id) === String(p.materialId))?.name || '...'}</span>
+                                                                            {p.note && <span className="text-[11px] block font-medium text-brand-600 tracking-tight mt-1">{p.note}</span>}
                                                                         </td>
-                                                                        <td className="px-8 py-5 text-right font-medium">{p.quantity}</td>
-                                                                        <td className="px-8 py-5 text-right font-bold text-slate-900 tabular-nums">{(p.totalBatchPrice || 0).toLocaleString()} đ</td>
-                                                                        <td className="px-4 py-5 text-right"><button onClick={() => deleteItem('purchases', p.id)} className="text-slate-300 hover:text-red-500 transition-all font-bold px-3">✕</button></td>
+                                                                        <td className="px-10 py-6 text-right font-bold text-slate-600">{p.quantity}</td>
+                                                                        <td className="px-10 py-6 text-right font-bold text-slate-900 tabular-nums">{(p.totalBatchPrice || 0).toLocaleString()} đ</td>
+                                                                        <td className="px-6 py-6 text-right">
+                                                                            <div className="flex gap-4 justify-end opacity-0 group-hover:opacity-100 transition-all">
+                                                                                <button onClick={() => startEditPurchase(p)} className="text-[10px] font-bold text-brand-600 uppercase">Sửa</button>
+                                                                                <button onClick={() => deleteItem('purchases', p.id)} className="text-slate-300 font-bold text-base px-2 transition-colors hover:text-red-500">✕</button>
+                                                                            </div>
+                                                                        </td>
                                                                     </tr>
                                                                 ))}
+                                                                {purchases.length === 0 && (
+                                                                    <tr><td colSpan="5" className="py-32 text-center text-slate-300 font-bold text-lg opacity-50">Chưa có dữ liệu nhập hàng</td></tr>
+                                                                )}
                                                             </tbody>
                                                             {purchases.length > 0 && (
                                                                 <tfoot className="bg-slate-50 font-bold border-t">
-                                                                    <tr><td colSpan="3" className="px-8 py-4 text-right text-xs text-slate-500 uppercase">Tổng đầu tư kho:</td><td className="px-8 py-4 text-right text-emerald-600 text-lg tabular-nums">{totalPurchaseValue.toLocaleString()} đ</td><td></td></tr>
+                                                                    <tr><td colSpan="3" className="px-10 py-5 text-right text-[10px] text-slate-400 uppercase tracking-widest">Tổng đầu tư kho hàng:</td><td className="px-10 py-5 text-right text-emerald-600 text-xl tabular-nums">{(totalPurchaseValue).toLocaleString()} đ</td><td></td></tr>
                                                                 </tfoot>
                                                             )}
                                                         </table>
@@ -402,60 +466,97 @@
                                     )}
 
                                     {activeTab === 'products' && (
-                                        <div className="p-10 grid grid-cols-1 lg:grid-cols-3 gap-12">
-                                            <div className="space-y-8">
-                                                <div className="bg-white p-8 rounded-2xl border border-slate-200 card-shadow">
-                                                    <h3 className="font-bold text-slate-800 mb-6 text-lg">Thiết lập sản phẩm mới</h3>
-                                                    <div className="space-y-8">
-                                                        <input value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} placeholder="Tên sản phẩm..." className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xl outline-none focus:border-brand-500 transition-all" />
-                                                        <div className="space-y-3">
-                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Danh mục vật liệu:</p>
-                                                            <div className="flex flex-wrap gap-2 max-h-[150px] overflow-auto pr-1">
-                                                                {materials.map(m => (
-                                                                    <button key={m.id} onClick={() => addToRecipe(m.id)} className="px-4 py-2 bg-white text-slate-700 text-xs font-semibold rounded-xl border hover:border-brand-500 transition-all shadow-sm">+ {m.name}</button>
+                                        <div className="p-10 grid grid-cols-1 lg:grid-cols-3 gap-12 text-left">
+                                            <div className="space-y-8 h-full flex flex-col">
+                                                <div className="bg-white p-8 rounded-[2rem] border border-slate-200 card-shadow flex flex-col h-full">
+                                                    <h3 className="font-bold text-slate-800 mb-8 text-xl border-b pb-4">{editingProductId ? 'Sửa định mức sản phẩm' : 'Lập định mức mới'}</h3>
+                                                    <div className="space-y-8 flex-grow overflow-auto pr-2 custom-scrollbar">
+                                                        <div>
+                                                            <label className="text-[11px] font-bold text-slate-400 mb-2 block uppercase tracking-wider">Tên sản phẩm hoàn thiện</label>
+                                                            <input value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} placeholder="Sổ handmade / Bộ khung..." className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xl outline-none focus:border-brand-500 transition-all placeholder:font-normal" />
+                                                        </div>
+                                                        
+                                                        <div className="space-y-4 text-left">
+                                                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Chọn nguyên liệu (A-Z):</p>
+                                                            <div className="flex flex-wrap gap-2 max-h-[180px] overflow-auto pr-1 text-left">
+                                                                {sortedMaterials.map(m => (
+                                                                    <button key={m.id} onClick={() => addToRecipe(m.id)} className="px-4 py-2.5 bg-white text-slate-700 text-sm font-semibold rounded-xl border border-slate-100 shadow-sm hover:border-brand-500 hover:text-brand-600 transition-all">+ {m.name}</button>
                                                                 ))}
                                                             </div>
                                                         </div>
-                                                        <div className="bg-slate-50 p-6 rounded-2xl border-2 border-dashed flex flex-col space-y-4">
-                                                            <h4 className="font-bold text-slate-400 mb-2 text-[10px] uppercase text-center tracking-widest">Định mức sử dụng (BOM)</h4>
-                                                            <div className="space-y-4 max-h-[400px] overflow-auto pr-1">
+
+                                                        <div className="bg-slate-50 p-6 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col space-y-5">
+                                                            <h4 className="font-bold text-slate-400 mb-2 text-[10px] uppercase text-center tracking-[0.2em]">Cấu trúc định mức BOM</h4>
+                                                            <div className="space-y-4 max-h-[500px] overflow-auto pr-1">
                                                                 {newProduct.recipe.map((item, idx) => (
-                                                                    <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 space-y-4 shadow-sm">
-                                                                        <div className="flex justify-between font-bold text-xs uppercase text-slate-800"><span>{item.name}</span><button onClick={() => setNewProduct({...newProduct, recipe: newProduct.recipe.filter((_, i) => i !== idx)})} className="text-red-400 font-bold px-2">✕</button></div>
+                                                                    <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-100 space-y-4 shadow-sm text-left">
+                                                                        <div className="flex justify-between font-bold text-sm text-slate-800 border-b pb-3 border-slate-50 uppercase">
+                                                                            <span>{item.name}</span>
+                                                                            <button onClick={() => setNewProduct({...newProduct, recipe: newProduct.recipe.filter((_, i) => i !== idx)})} className="text-red-400 font-bold text-lg px-1 transition-colors hover:text-red-600">✕</button>
+                                                                        </div>
                                                                         <div className="grid grid-cols-2 gap-4">
-                                                                            <div><label className="text-[9px] font-bold text-slate-400 block mb-1">Dùng ({item.unit})</label><input type="number" step="any" className="w-full bg-slate-50 p-2 rounded-lg font-bold outline-none" value={item.amount} onChange={e => { const updated = [...newProduct.recipe]; updated[idx].amount = e.target.value; setNewProduct({...newProduct, recipe: updated}); }} /></div>
-                                                                            <div><label className="text-[9px] font-bold text-slate-400 block mb-1">Giá áp dụng</label><input type="number" step="any" className="w-full bg-slate-50 p-2 rounded-lg font-bold text-brand-600 outline-none" value={item.price} onChange={e => { const updated = [...newProduct.recipe]; updated[idx].price = e.target.value; setNewProduct({...newProduct, recipe: updated}); }} /></div>
+                                                                            <div>
+                                                                                <label className="text-[9px] font-bold text-slate-400 block mb-1 uppercase tracking-wider">Sử dụng ({item.unit})</label>
+                                                                                <input type="number" step="any" className="w-full bg-slate-50 px-3 py-2 rounded-xl font-bold text-slate-800 outline-none border border-transparent focus:border-slate-200 text-lg" value={item.amount} onChange={e => { const updated = [...newProduct.recipe]; updated[idx].amount = e.target.value; setNewProduct({...newProduct, recipe: updated}); }} />
+                                                                            </div>
+                                                                            <div>
+                                                                                <label className="text-[9px] font-bold text-slate-400 block mb-1 uppercase tracking-wider">Giá nhập (đ)</label>
+                                                                                <input type="number" step="any" className="w-full bg-slate-50 px-3 py-2 rounded-xl font-bold text-brand-600 outline-none border border-transparent focus:border-brand-500 text-lg" value={item.price} onChange={e => { const updated = [...newProduct.recipe]; updated[idx].price = e.target.value; setNewProduct({...newProduct, recipe: updated}); }} />
+                                                                            </div>
+                                                                        </div>
+                                                                        <div>
+                                                                            <label className="text-[9px] font-bold text-slate-400 block mb-1 uppercase tracking-wider">Hao hụt sản xuất (%)</label>
+                                                                            <input type="number" step="any" className="w-full bg-amber-50 px-3 py-2 rounded-xl font-bold text-amber-600 outline-none border border-transparent focus:border-amber-200" value={item.wastage || 0} onChange={e => { const updated = [...newProduct.recipe]; updated[idx].wastage = e.target.value; setNewProduct({...newProduct, recipe: updated}); }} />
                                                                         </div>
                                                                     </div>
                                                                 ))}
+                                                                {newProduct.recipe.length === 0 && <div className="py-16 text-center text-slate-300 font-bold opacity-50">Hãy chọn vật tư để xây dựng định mức</div>}
                                                             </div>
-                                                            {newProduct.recipe.length > 0 && (
-                                                                <div className="p-4 bg-brand-50 border border-brand-100 rounded-xl flex justify-between items-center shadow-inner"><span className="text-[10px] font-bold text-brand-600 uppercase tracking-tighter">Giá vốn dự kiến:</span><span className="text-lg font-bold text-brand-600 tabular-nums">{Math.round(currentBOMTotal).toLocaleString()} đ</span></div>
-                                                            )}
-                                                            <button onClick={saveProduct} className="w-full bg-brand-600 text-white py-4 rounded-xl font-bold text-sm shadow-lg hover:bg-brand-700">Lưu định mức thành phẩm</button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="pt-8 mt-auto">
+                                                        {newProduct.recipe.length > 0 && (
+                                                            <div className="p-5 bg-brand-50 border border-brand-100 rounded-2xl flex justify-between items-center shadow-inner mb-6">
+                                                                <span className="text-[11px] font-bold text-brand-600 uppercase tracking-wider">Vốn tạm tính:</span>
+                                                                <span className="text-2xl font-bold text-brand-600 tabular-nums">{Math.round(currentBOMTotal).toLocaleString()} đ</span>
+                                                            </div>
+                                                        )}
+                                                        <div className="flex gap-3">
+                                                            <button onClick={saveProduct} className="flex-1 bg-brand-600 text-white py-4 rounded-3xl font-bold text-base shadow-xl shadow-brand-500/20 hover:bg-brand-700 transition-all uppercase tracking-widest">{editingProductId ? 'Cập nhật định mức' : 'Lưu sản phẩm'}</button>
+                                                            {editingProductId && <button onClick={() => { setEditingProductId(null); setNewProduct({name:'', recipe:[]}) }} className="px-6 py-4 bg-slate-200 text-slate-600 rounded-3xl font-bold text-sm transition-colors hover:bg-slate-300">Hủy</button>}
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="lg:col-span-2 space-y-8 flex flex-col h-full overflow-hidden">
-                                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 overflow-auto pr-2 pb-32 custom-scrollbar">
+                                            <div className="lg:col-span-2 space-y-8 flex flex-col h-full overflow-hidden text-left">
+                                                <h3 className="font-bold text-slate-800 text-xl px-4 tracking-tight uppercase tracking-widest text-base opacity-70">Danh sách sản phẩm đã lưu</h3>
+                                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 overflow-auto pr-4 pb-32 custom-scrollbar">
                                                     {products.map(p => {
                                                         const cogs = calculateProductCOGS(p);
                                                         return (
-                                                            <div key={p.id} className="bg-white rounded-2xl p-8 border border-slate-200 card-shadow transition-all group h-fit">
-                                                                <div className="flex justify-between items-start mb-6">
-                                                                    <div className="flex-1"><h4 className="text-xl font-bold text-slate-900 group-hover:text-brand-600 transition-colors leading-tight">{p.name}</h4><p className="text-[10px] font-bold text-slate-400 mt-1 uppercase">{p.recipe.length} nguyên liệu</p></div>
-                                                                    <button onClick={() => deleteItem('products', p.id)} className="text-slate-200 hover:text-red-500 font-bold text-xl px-2 transition-colors">✕</button>
+                                                            <div key={p.id} className="bg-white rounded-[2.5rem] p-10 border border-slate-200 card-shadow transition-all group h-fit relative hover:border-brand-200 text-left">
+                                                                <div className="flex justify-between items-start mb-8">
+                                                                    <div className="flex-1 text-left">
+                                                                        <h4 className="text-2xl font-bold text-slate-900 leading-tight tracking-tight group-hover:text-brand-600 transition-colors uppercase">{p.name}</h4>
+                                                                        <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-[0.2em]">{p.recipe.length} nguyên liệu thành phần</p>
+                                                                    </div>
+                                                                    <div className="flex gap-4">
+                                                                        <button onClick={() => startEditProduct(p)} className="text-[11px] font-bold text-brand-600 uppercase border border-brand-100 px-3 py-1 rounded-lg hover:bg-brand-500 hover:text-white transition-all shadow-sm">Sửa</button>
+                                                                        <button onClick={() => deleteItem('products', p.id)} className="text-slate-300 hover:text-red-500 font-bold text-2xl px-2 transition-colors">✕</button>
+                                                                    </div>
                                                                 </div>
-                                                                <div className="bg-slate-900 p-8 rounded-2xl mb-8 flex flex-col items-center">
-                                                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mb-2 text-center leading-none">Tổng giá vốn nguyên liệu (COGS)</p>
-                                                                    <p className="text-4xl font-bold text-brand-500 tabular-nums tracking-tighter">{Math.round(cogs).toLocaleString()} đ</p>
+                                                                <div className="bg-slate-900 p-10 rounded-[2rem] mb-10 text-center border border-slate-800 shadow-lg">
+                                                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.3em] mb-3 leading-none opacity-80">Tổng giá vốn nguyên liệu (COGS)</p>
+                                                                    <p className="text-5xl font-bold text-brand-500 tabular-nums tracking-tighter">{Math.round(cogs).toLocaleString()} <span className="text-xl">đ</span></p>
                                                                 </div>
-                                                                <div className="space-y-4 pt-4 border-t border-slate-50 text-sm">
+                                                                <div className="space-y-4 pt-6 border-t border-slate-100 text-sm text-left">
                                                                     {p.recipe.map((r, i) => (
                                                                         <div key={i} className="flex justify-between items-center py-1">
-                                                                            <div className="flex flex-col"><span className="font-bold text-slate-700 italic">{r.name}</span><span className="text-[10px] text-slate-400 font-semibold uppercase">Giá áp dụng: {Number(r.price).toLocaleString()}đ</span></div>
-                                                                            <span className="font-bold text-slate-900 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 tabular-nums">{r.amount} {r.unit}</span>
+                                                                            <div className="flex flex-col text-left">
+                                                                                <span className="font-bold text-slate-700 text-base uppercase tracking-tight">{r.name}</span>
+                                                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 opacity-80">Giá: {Number(r.price).toLocaleString()}đ / Hao hụt: {r.wastage || 0}%</span>
+                                                                            </div>
+                                                                            <span className="font-bold text-slate-900 bg-slate-50 px-4 py-1.5 rounded-xl border border-slate-100 tabular-nums text-base">{r.amount} {r.unit}</span>
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -471,9 +572,9 @@
                         </div>
                         
                         {showNotification && (
-                            <div className="fixed bottom-10 right-10 bg-slate-900 text-white px-8 py-5 rounded-2xl shadow-2xl flex items-center z-[100] animate-in slide-in-from-bottom-5 border-l-8 border-brand-500">
-                                <span className="font-bold text-sm tracking-tight">{showNotification}</span>
-                                <button onClick={() => setShowNotification(null)} className="text-slate-400 hover:text-white font-black text-xl ml-8">✕</button>
+                            <div className="fixed bottom-10 right-10 bg-slate-900 text-white px-10 py-6 rounded-3xl shadow-2xl flex items-center z-[100] animate-in slide-in-from-bottom-5 border-l-8 border-brand-500">
+                                <span className="font-bold text-base tracking-tight">{showNotification}</span>
+                                <button onClick={() => setShowNotification(null)} className="text-slate-400 hover:text-white font-black text-2xl ml-8">✕</button>
                             </div>
                         )}
                     </main>
