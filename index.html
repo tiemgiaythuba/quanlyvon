@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tiệm giấy Thứ Ba - Quản lý giá vốn</title>
+    <title>Tiệm giấy Thứ Ba - Quản lý giá vốn</title>
     <link rel="icon" href="tachnen.jpg">
     <link rel="shortcut icon" href="tachnen.jpg">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -68,7 +68,7 @@
             
             // Cấu hình Script URL
             const [scriptUrl, setScriptUrl] = useState(localStorage.getItem('tg_script_url') || '');
-            const [newProduct, setNewProduct] = useState({ name: '', recipe: [], packagingCost: 0, laborCost: 0 });
+            const [newProduct, setNewProduct] = useState({ name: '', recipe: [], packagingCost: 0, laborCost: 0, customCost: 0 });
             const fileInputRef = useRef(null);
 
             // --- Persistence & Sync ---
@@ -135,7 +135,7 @@
                     const costWithWastage = (item.amount * avgPrice) / (1 - (item.wastage / 100));
                     ingredientTotal += costWithWastage;
                 });
-                return ingredientTotal + Number(product.packagingCost || 0) + Number(product.laborCost || 0);
+                return ingredientTotal + Number(product.packagingCost || 0) + Number(product.laborCost || 0) + Number(product.customCost || 0);
             };
 
             // --- Handlers ---
@@ -154,14 +154,19 @@
             const addPurchase = (e) => {
                 e.preventDefault();
                 const materialId = e.target.materialId.value;
-                const quantity = e.target.quantity.value;
-                const price = e.target.price.value;
-                if (!materialId || !quantity || !price) return;
+                const quantity = Number(e.target.quantity.value);
+                const totalCost = Number(e.target.totalCost.value);
+                
+                if (!materialId || quantity <= 0 || totalCost < 0) return;
+                
+                // Tự động tính đơn giá từ tổng tiền nhập
+                const price = totalCost / quantity;
+
                 const newPur = [...purchases, { 
                     id: Date.now().toString(), 
                     materialId, 
-                    quantity: Number(quantity), 
-                    price: Number(price), 
+                    quantity, 
+                    price, 
                     date: e.target.date.value || new Date().toISOString().split('T')[0] 
                 }];
                 setPurchases(newPur);
@@ -175,7 +180,7 @@
                 const newPro = [...products, { ...newProduct, id: Date.now().toString() }];
                 setProducts(newPro);
                 syncData(materials, purchases, newPro);
-                setNewProduct({ name: '', recipe: [], packagingCost: 0, laborCost: 0 });
+                setNewProduct({ name: '', recipe: [], packagingCost: 0, laborCost: 0, customCost: 0 });
                 notify("Đã lưu định mức sản phẩm");
             };
 
@@ -282,10 +287,10 @@
                     {/* Sidebar */}
                     <aside className="w-64 bg-slate-900 flex-shrink-0 flex flex-col shadow-2xl z-20">
                         <div className="p-8 flex flex-col items-center bg-slate-800/30 border-b border-slate-700/50">
-                            {/* LOGO HERE: Thay link logo của bạn vào src bên dưới */}
-                            <div className="w-16 h-16 rounded-2xl bg-brand-500 mb-4 flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-brand-500/20 overflow-hidden">
-                                <img src="" alt="Logo" className="w-full h-full object-cover hidden" onError={(e)=>e.target.style.display='none'} />
-                                📄
+                            {/* Khối hiển thị Logo */}
+                            <div className="w-16 h-16 rounded-2xl bg-brand-500 mb-4 flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-brand-500/20 overflow-hidden relative">
+                                <span className="absolute z-0">📄</span>
+                                <img src="tachnen.jpg" alt="Logo" className="w-full h-full object-cover relative z-10" onError={(e)=>e.target.style.display='none'} />
                             </div>
                             <h1 className="text-white font-extrabold text-sm leading-tight tracking-tight text-center">Tiệm giấy <br/><span className="text-brand-500 text-lg font-black">Thứ Ba</span></h1>
                         </div>
@@ -335,7 +340,8 @@
                                                 </select>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <input name="quantity" type="number" step="any" placeholder="SL" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" required />
-                                                    <input name="price" type="number" placeholder="Đơn giá" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" required />
+                                                    {/* Đã sửa thành ô nhập Tổng tiền */}
+                                                    <input name="totalCost" type="number" placeholder="Tổng tiền (đ)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-brand-600" required />
                                                 </div>
                                                 <input name="date" type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" defaultValue={new Date().toISOString().split('T')[0]} />
                                                 <button className="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-bold">Ghi nhận nhập kho</button>
@@ -373,9 +379,11 @@
                                     <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-200 grid grid-cols-1 lg:grid-cols-2 gap-16">
                                         <div className="space-y-8">
                                             <input value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} placeholder="Tên sản phẩm mới..." className="w-full px-8 py-5 bg-slate-50 border-none rounded-3xl font-bold text-2xl outline-none focus:ring-4 focus:ring-brand-500/10" />
-                                            <div className="grid grid-cols-2 gap-6">
+                                            {/* Thêm ô Phụ phí vào grid */}
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                                 <input type="number" placeholder="Chi phí bao bì" value={newProduct.packagingCost} onChange={e => setNewProduct({...newProduct, packagingCost: e.target.value})} className="px-5 py-3 border border-slate-200 rounded-2xl" />
                                                 <input type="number" placeholder="Công nhân (đ)" value={newProduct.laborCost} onChange={e => setNewProduct({...newProduct, laborCost: e.target.value})} className="px-5 py-3 border border-slate-200 rounded-2xl" />
+                                                <input type="number" placeholder="Phụ phí (gỗ...)" value={newProduct.customCost} onChange={e => setNewProduct({...newProduct, customCost: e.target.value})} className="px-5 py-3 border border-slate-200 rounded-2xl" />
                                             </div>
                                             <div className="flex flex-wrap gap-2">
                                                 {materials.map(m => (
@@ -401,7 +409,7 @@
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-16">
                                         {products.map(p => (
-                                            <div key={p.id} className="bg-white rounded-[2rem] p-8 border border-slate-200">
+                                            <div key={p.id} className="bg-white rounded-[2rem] p-8 border border-slate-200 flex flex-col h-full">
                                                 <div className="flex justify-between items-start mb-6">
                                                     <h4 className="text-xl font-black">{p.name}</h4>
                                                     <button onClick={() => { if(confirm("Xóa sản phẩm?")) { const n = products.filter(pr => pr.id !== p.id); setProducts(n); syncData(materials, purchases, n); }}} className="text-slate-200 hover:text-red-500">✕</button>
@@ -410,8 +418,21 @@
                                                     <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Giá vốn dự kiến</p>
                                                     <p className="text-3xl font-black text-brand-600">{Math.round(calculateProductCOGS(p)).toLocaleString()} đ</p>
                                                 </div>
-                                                <div className="space-y-2 text-xs text-slate-500">
+                                                <div className="space-y-2 text-xs text-slate-500 flex-grow">
                                                     {p.recipe.map((r, i) => <div key={i} className="flex justify-between"><span>• {r.name}</span><span className="font-bold">{r.amount} {r.unit}</span></div>)}
+                                                </div>
+                                                {/* Hiển thị chi phí phụ */}
+                                                <div className="mt-6 pt-4 border-t border-slate-100 space-y-2 text-[11px] text-slate-500 font-medium">
+                                                    <div className="flex justify-between">
+                                                        <span>Bao bì & Công:</span>
+                                                        <span>{(Number(p.packagingCost||0) + Number(p.laborCost||0)).toLocaleString()} đ</span>
+                                                    </div>
+                                                    {p.customCost > 0 && (
+                                                        <div className="flex justify-between text-brand-600 font-bold">
+                                                            <span>Vật tư linh hoạt:</span>
+                                                            <span>{Number(p.customCost||0).toLocaleString()} đ</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
