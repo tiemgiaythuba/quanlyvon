@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tiệm giấy Thứ Ba - Quản lý giá vốn</title>
-    <link rel="icon" href="tachnen.jpg">
-    <link rel="shortcut icon" href="tachnen.jpg">
+    <title>tiệm giấy Thứ Ba - Quản lý giá vốn</title>
+    <link rel="icon" href="./tachnen.png">
+    <link rel="shortcut icon" href="./tachnen.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -159,7 +159,6 @@
                 
                 if (!materialId || quantity <= 0 || totalCost < 0) return;
                 
-                // Tự động tính đơn giá từ tổng tiền nhập
                 const price = totalCost / quantity;
 
                 const newPur = [...purchases, { 
@@ -189,6 +188,20 @@
                 const newM = materials.filter(m => m.id !== id);
                 setMaterials(newM);
                 syncData(newM, purchases, products);
+            };
+
+            const exportPurchaseHistory = () => {
+                if (purchases.length === 0) return notify("Không có dữ liệu để xuất");
+                const bom = '\uFEFF';
+                const csv = "Ngày;Tên nguyên liệu;Số lượng;Đơn giá bình quân;Thành tiền\n" + 
+                    [...purchases].reverse().map(p => {
+                        const m = materials.find(mat => mat.id === p.materialId);
+                        const name = m ? m.name : 'Đã xóa';
+                        return `${p.date};${name};${p.quantity};${Math.round(p.price)};${Math.round(p.quantity * p.price)}`;
+                    }).join("\n");
+                const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob); link.download = "lich_su_nhap_kho_giathuba.csv"; link.click();
             };
 
             // --- Views ---
@@ -287,12 +300,12 @@
                     {/* Sidebar */}
                     <aside className="w-64 bg-slate-900 flex-shrink-0 flex flex-col shadow-2xl z-20">
                         <div className="p-8 flex flex-col items-center bg-slate-800/30 border-b border-slate-700/50">
-                            {/* Khối hiển thị Logo */}
+                            {/* Logo */}
                             <div className="w-16 h-16 rounded-2xl bg-brand-500 mb-4 flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-brand-500/20 overflow-hidden relative">
                                 <span className="absolute z-0">📄</span>
-                                <img src="tachnen.jpg" alt="Logo" className="w-full h-full object-cover relative z-10" onError={(e)=>e.target.style.display='none'} />
+                                <img src="./tachnen.jpg" alt="Logo" className="w-full h-full object-cover relative z-10" onError={(e)=>e.target.style.display='none'} />
                             </div>
-                            <h1 className="text-white font-extrabold text-sm leading-tight tracking-tight text-center">Tiệm giấy <br/><span className="text-brand-500 text-lg font-black">Thứ Ba</span></h1>
+                            <h1 className="text-white font-extrabold text-sm leading-tight tracking-tight text-center">tiệm giấy <span className="text-brand-500 text-lg font-black">Thứ Ba</span></h1>
                         </div>
                         
                         <nav className="flex-1 px-4 py-8 space-y-3">
@@ -334,13 +347,15 @@
                                         <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
                                             <h3 className="font-bold text-slate-800 mb-6 text-emerald-600">📥 Nhập kho thực tế</h3>
                                             <form onSubmit={addPurchase} className="space-y-5">
+                                                {/* Đã thêm hàm sort() để sắp xếp danh sách thả xuống theo A-Z */}
                                                 <select name="materialId" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none" required>
                                                     <option value="">Chọn nguyên liệu</option>
-                                                    {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                                    {[...materials]
+                                                        .sort((a, b) => a.name.localeCompare(b.name))
+                                                        .map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                                                 </select>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <input name="quantity" type="number" step="any" placeholder="SL" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" required />
-                                                    {/* Đã sửa thành ô nhập Tổng tiền */}
                                                     <input name="totalCost" type="number" placeholder="Tổng tiền (đ)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-brand-600" required />
                                                 </div>
                                                 <input name="date" type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" defaultValue={new Date().toISOString().split('T')[0]} />
@@ -351,7 +366,11 @@
                                     <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
                                         <div className="px-8 py-6 border-b bg-slate-50/50 flex justify-between items-center">
                                             <h3 className="font-bold text-slate-700">🕒 Nhật ký nhập kho</h3>
-                                            <button onClick={() => { if(confirm("Xóa toàn bộ dữ liệu?")) { setPurchases([]); syncData(materials, [], products); } }} className="text-xs font-bold text-red-400">Làm sạch</button>
+                                            <div className="flex gap-4">
+                                                {/* Thêm nút Xuất Excel cho phần lịch sử nhập kho */}
+                                                <button onClick={exportPurchaseHistory} className="text-xs font-bold text-brand-600 bg-brand-50 px-4 py-2 rounded-xl hover:bg-brand-100 transition-colors">📥 Xuất Excel</button>
+                                                <button onClick={() => { if(confirm("Xóa toàn bộ dữ liệu?")) { setPurchases([]); syncData(materials, [], products); } }} className="text-xs font-bold text-red-400 hover:text-red-500">Làm sạch</button>
+                                            </div>
                                         </div>
                                         <div className="overflow-auto flex-1 custom-scrollbar">
                                             <table className="w-full text-left text-sm">
@@ -364,7 +383,7 @@
                                                             <td className="px-8 py-5 text-slate-400">{p.date}</td>
                                                             <td className="px-8 py-5 font-bold">{materials.find(m => m.id === p.materialId)?.name}</td>
                                                             <td className="px-8 py-5 text-right">{p.quantity}</td>
-                                                            <td className="px-8 py-5 text-right font-bold">{(p.quantity * p.price).toLocaleString()}đ</td>
+                                                            <td className="px-8 py-5 text-right font-bold">{Math.round(p.quantity * p.price).toLocaleString()}đ</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -379,7 +398,6 @@
                                     <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-200 grid grid-cols-1 lg:grid-cols-2 gap-16">
                                         <div className="space-y-8">
                                             <input value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} placeholder="Tên sản phẩm mới..." className="w-full px-8 py-5 bg-slate-50 border-none rounded-3xl font-bold text-2xl outline-none focus:ring-4 focus:ring-brand-500/10" />
-                                            {/* Thêm ô Phụ phí vào grid */}
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                                 <input type="number" placeholder="Chi phí bao bì" value={newProduct.packagingCost} onChange={e => setNewProduct({...newProduct, packagingCost: e.target.value})} className="px-5 py-3 border border-slate-200 rounded-2xl" />
                                                 <input type="number" placeholder="Công nhân (đ)" value={newProduct.laborCost} onChange={e => setNewProduct({...newProduct, laborCost: e.target.value})} className="px-5 py-3 border border-slate-200 rounded-2xl" />
@@ -421,7 +439,6 @@
                                                 <div className="space-y-2 text-xs text-slate-500 flex-grow">
                                                     {p.recipe.map((r, i) => <div key={i} className="flex justify-between"><span>• {r.name}</span><span className="font-bold">{r.amount} {r.unit}</span></div>)}
                                                 </div>
-                                                {/* Hiển thị chi phí phụ */}
                                                 <div className="mt-6 pt-4 border-t border-slate-100 space-y-2 text-[11px] text-slate-500 font-medium">
                                                     <div className="flex justify-between">
                                                         <span>Bao bì & Công:</span>
