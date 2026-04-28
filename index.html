@@ -152,10 +152,37 @@
                 notify("Đã lưu định mức sản phẩm");
             };
 
+            // BẢO MẬT 2 LỚP KHI XÓA NGUYÊN LIỆU
             const deleteMaterial = (id) => {
-                if (purchases.some(p => p.materialId === id)) return notify("Dã có nhập kho, không thể xóa");
+                const mat = materials.find(m => m.id === id);
+                if (!mat) return;
+
+                // Lớp 1: Chặn nếu nguyên liệu đang nằm trong công thức sản phẩm (BOM)
+                const usedInProducts = products.filter(prod => prod.recipe.some(r => r.materialId === id));
+                if (usedInProducts.length > 0) {
+                    const prodNames = usedInProducts.map(p => p.name).join(", ");
+                    return notify(`❌ LỖI: Nguyên liệu đang dùng cho SP [${prodNames}]. Hãy gỡ khỏi định mức trước!`);
+                }
+
+                // Lớp 2: Xác nhận bằng chữ gõ nếu đã có lịch sử nhập kho
+                const hasPurchases = purchases.some(p => p.materialId === id);
+                if (hasPurchases) {
+                    const confirmText = window.prompt(`CẢNH BÁO: "${mat.name}" đã có dữ liệu nhập kho.\nNếu xóa, toàn bộ lịch sử nhập kho của nó sẽ bị xóa vĩnh viễn!\n\nĐể tiếp tục, hãy gõ chính xác chữ: XOA`);
+                    if (confirmText !== "XOA") {
+                        return notify("Đã hủy thao tác xóa.");
+                    }
+                } else {
+                    if (!window.confirm(`Bạn có chắc chắn muốn xóa nguyên liệu "${mat.name}" không?`)) return;
+                }
+
+                // Thực thi xóa: Loại bỏ nguyên liệu và tất cả lịch sử mua hàng của nó
                 const newM = materials.filter(m => m.id !== id);
-                setMaterials(newM); syncData(newM, purchases, products);
+                const newPur = purchases.filter(p => p.materialId !== id);
+                
+                setMaterials(newM); 
+                setPurchases(newPur);
+                syncData(newM, newPur, products);
+                notify(`Đã xóa nguyên liệu "${mat.name}" thành công`);
             };
 
             const exportPurchaseHistory = () => {
@@ -247,16 +274,11 @@
 
             return (
                 <div className="flex h-full relative w-full overflow-hidden">
-                    
-                    {/* Overlay đóng menu trên Mobile */}
                     {isSidebarOpen && (
                         <div className="fixed inset-0 bg-slate-900/60 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsSidebarOpen(false)}></div>
                     )}
 
-                    {/* Sidebar */}
                     <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                        
-                        {/* Khu vực Logo: Nền trắng, viền cam, nằm ngang */}
                         <div className="p-5 md:p-6 flex flex-row items-center gap-3 md:gap-4 bg-slate-800/30 border-b border-slate-700/50">
                             <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white border-2 border-brand-500 flex-shrink-0 flex items-center justify-center text-brand-500 text-xl font-black shadow-lg shadow-brand-500/20 overflow-hidden relative">
                                 <span className="absolute z-0">📄</span>
@@ -278,7 +300,6 @@
                         </div>
                     </aside>
 
-                    {/* Main Content */}
                     <main className="flex-1 flex flex-col min-w-0 bg-[#f8fafc] relative h-full overflow-hidden">
                         <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center px-4 md:px-10 shadow-sm flex-shrink-0 z-10 sticky top-0">
                             <button className="md:hidden mr-3 p-2 -ml-2 text-slate-500 hover:text-brand-500 transition-colors rounded-lg" onClick={() => setIsSidebarOpen(true)}>
@@ -327,7 +348,6 @@
                                             <h3 className="font-bold text-slate-700 text-sm md:text-base">🕒 Nhật ký nhập kho</h3>
                                             <div className="flex gap-2 md:gap-4">
                                                 <button onClick={exportPurchaseHistory} className="text-[10px] md:text-xs font-bold text-brand-600 bg-brand-50 px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl hover:bg-brand-100 transition-colors">📥 Xuất Excel</button>
-                                                <button onClick={() => { if(confirm("Xóa toàn bộ dữ liệu?")) { setPurchases([]); syncData(materials, [], products); } }} className="text-[10px] md:text-xs font-bold text-red-400 hover:text-red-500 px-2">Làm sạch</button>
                                             </div>
                                         </div>
                                         <div className="overflow-auto flex-1 custom-scrollbar w-full">
