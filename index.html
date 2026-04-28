@@ -4,16 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>tiệm giấy Thứ Ba - Quản lý giá vốn</title>
-    <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#0f172a">
     
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Quản lý vốn - tiệm giấy Thứ Ba">
-    <link rel="apple-touch-icon" href="./tachnen.png">
     <link rel="icon" href="./tachnen.png">
     <link rel="shortcut icon" href="./tachnen.png">
-    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="tiệm giấy Thứ Ba - Quản lý giá vốn">
+    <link rel="apple-touch-icon" href="./tachnen.png"> <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -22,13 +22,8 @@
         tailwind.config = {
             theme: {
                 extend: {
-                    fontFamily: { 
-                        sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'] 
-                    },
-                    colors: {
-                        brand: { 500: '#ea580c', 600: '#c2410c' }, 
-                        slate: { 800: '#1e293b', 900: '#0f172a' }
-                    }
+                    fontFamily: { sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'] },
+                    colors: { brand: { 500: '#ea580c', 600: '#c2410c' }, slate: { 800: '#1e293b', 900: '#0f172a' } }
                 }
             }
         }
@@ -36,24 +31,12 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap');
-        
-        body { 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
-            background-color: #f8fafc; 
-            -webkit-font-smoothing: antialiased;
-        }
-
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; -webkit-font-smoothing: antialiased; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-        .nav-active { 
-            background-color: #ea580c !important; 
-            color: white !important; 
-            box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25); 
-        }
-
+        .nav-active { background-color: #ea580c !important; color: white !important; box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25); }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
     </style>
 </head>
@@ -64,7 +47,6 @@
         const { useState, useEffect, useMemo, useRef } = React;
 
         const App = () => {
-            // --- State ---
             const [activeTab, setActiveTab] = useState('dashboard');
             const [materials, setMaterials] = useState([]);
             const [purchases, setPurchases] = useState([]);
@@ -73,16 +55,11 @@
             const [isLoading, setIsLoading] = useState(false);
             const [isSaving, setIsSaving] = useState(false);
             
-            // Cấu hình Script URL
             const [scriptUrl, setScriptUrl] = useState(localStorage.getItem('tg_script_url') || '');
             const [newProduct, setNewProduct] = useState({ name: '', recipe: [], packagingCost: 0, laborCost: 0, customCost: 0 });
             const fileInputRef = useRef(null);
 
-            // --- Persistence & Sync ---
-            useEffect(() => {
-                if (!scriptUrl) return;
-                loadData();
-            }, []);
+            useEffect(() => { if (!scriptUrl) return; loadData(); }, []);
 
             const loadData = async () => {
                 setIsLoading(true);
@@ -96,25 +73,18 @@
                 } catch (err) {
                     console.error(err);
                     notify("Không thể kết nối Script. Vui lòng kiểm tra lại cài đặt.");
-                } finally {
-                    setIsLoading(false);
-                }
+                } finally { setIsLoading(false); }
             };
 
             const syncData = async (m, pur, pro) => {
                 if (!scriptUrl) return;
                 setIsSaving(true);
                 try {
-                    await fetch(scriptUrl, {
-                        method: 'POST',
-                        body: JSON.stringify({ materials: m, purchases: pur, products: pro })
-                    });
+                    await fetch(scriptUrl, { method: 'POST', body: JSON.stringify({ materials: m, purchases: pur, products: pro }) });
                 } catch (err) {
                     console.error(err);
                     notify("Lỗi lưu dữ liệu lên máy chủ!");
-                } finally {
-                    setIsSaving(false);
-                }
+                } finally { setIsSaving(false); }
             };
 
             const notify = (msg) => {
@@ -122,7 +92,6 @@
                 setTimeout(() => setShowNotification(null), 3000);
             };
 
-            // --- Logic ---
             const materialCosts = useMemo(() => {
                 const costs = {};
                 materials.forEach(m => {
@@ -145,17 +114,14 @@
                 return ingredientTotal + Number(product.packagingCost || 0) + Number(product.laborCost || 0) + Number(product.customCost || 0);
             };
 
-            // --- Handlers ---
             const addMaterial = (e) => {
                 e.preventDefault();
                 const name = e.target.name.value;
                 const unit = e.target.unit.value;
                 if (!name) return;
                 const newM = [...materials, { id: Date.now().toString(), name, unit }];
-                setMaterials(newM);
-                syncData(newM, purchases, products);
-                e.target.reset();
-                notify("Đã thêm nguyên liệu");
+                setMaterials(newM); syncData(newM, purchases, products);
+                e.target.reset(); notify("Đã thêm nguyên liệu");
             };
 
             const addPurchase = (e) => {
@@ -163,29 +129,17 @@
                 const materialId = e.target.materialId.value;
                 const quantity = Number(e.target.quantity.value);
                 const totalCost = Number(e.target.totalCost.value);
-                
                 if (!materialId || quantity <= 0 || totalCost < 0) return;
-                
                 const price = totalCost / quantity;
-
-                const newPur = [...purchases, { 
-                    id: Date.now().toString(), 
-                    materialId, 
-                    quantity, 
-                    price, 
-                    date: e.target.date.value || new Date().toISOString().split('T')[0] 
-                }];
-                setPurchases(newPur);
-                syncData(materials, newPur, products);
-                e.target.reset();
-                notify("Đã ghi nhận nhập kho");
+                const newPur = [...purchases, { id: Date.now().toString(), materialId, quantity, price, date: e.target.date.value || new Date().toISOString().split('T')[0] }];
+                setPurchases(newPur); syncData(materials, newPur, products);
+                e.target.reset(); notify("Đã ghi nhận nhập kho");
             };
 
             const saveProduct = () => {
                 if (!newProduct.name || newProduct.recipe.length === 0) return notify("Vui lòng điền đủ thông tin");
                 const newPro = [...products, { ...newProduct, id: Date.now().toString() }];
-                setProducts(newPro);
-                syncData(materials, purchases, newPro);
+                setProducts(newPro); syncData(materials, purchases, newPro);
                 setNewProduct({ name: '', recipe: [], packagingCost: 0, laborCost: 0, customCost: 0 });
                 notify("Đã lưu định mức sản phẩm");
             };
@@ -193,8 +147,7 @@
             const deleteMaterial = (id) => {
                 if (purchases.some(p => p.materialId === id)) return notify("Dữ liệu đã có nhập kho, không thể xóa");
                 const newM = materials.filter(m => m.id !== id);
-                setMaterials(newM);
-                syncData(newM, purchases, products);
+                setMaterials(newM); syncData(newM, purchases, products);
             };
 
             const exportPurchaseHistory = () => {
@@ -207,11 +160,9 @@
                         return `${p.date};${name};${p.quantity};${Math.round(p.price)};${Math.round(p.quantity * p.price)}`;
                     }).join("\n");
                 const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement("a");
-                link.href = URL.createObjectURL(blob); link.download = "lich_su_nhap_kho_giathuba.csv"; link.click();
+                const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "lich_su_nhap_kho_giathuba.csv"; link.click();
             };
 
-            // --- Views ---
             const DashboardView = () => (
                 <div className="flex-1 overflow-auto p-8 space-y-8">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -231,8 +182,7 @@
                             const bom = '\uFEFF';
                             const csv = "Tên;Đơn vị;Giá TB\n" + materials.map(m => `${m.name};${m.unit};${Math.round(materialCosts[m.id])}`).join("\n");
                             const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
-                            const link = document.createElement("a");
-                            link.href = URL.createObjectURL(blob); link.download = "bao_cao_giathuba.csv"; link.click();
+                            const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "bao_cao_giathuba.csv"; link.click();
                         }} className="bg-slate-900 text-white p-6 rounded-2xl shadow-lg hover:bg-slate-800 transition flex items-center justify-between group text-left">
                             <div><p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Báo cáo</p><p className="text-lg font-bold">Xuất Excel</p></div>
                             <span className="text-2xl group-hover:scale-110 transition">📥</span>
@@ -259,9 +209,7 @@
                                         <td className="px-8 py-4 font-semibold text-slate-700">{m.name}</td>
                                         <td className="px-8 py-4 text-slate-500">{m.unit}</td>
                                         <td className="px-8 py-4 text-right font-bold text-brand-600">{Math.round(materialCosts[m.id]).toLocaleString()} đ</td>
-                                        <td className="px-8 py-4 text-right">
-                                            <button onClick={() => deleteMaterial(m.id)} className="text-slate-300 hover:text-red-500 transition font-medium px-2">Xóa</button>
-                                        </td>
+                                        <td className="px-8 py-4 text-right"><button onClick={() => deleteMaterial(m.id)} className="text-slate-300 hover:text-red-500 transition font-medium px-2">Xóa</button></td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -275,28 +223,12 @@
                     <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-200">
                         <h3 className="text-2xl font-black text-slate-800 mb-2">⚙️ Cài đặt hệ thống</h3>
                         <p className="text-slate-500 text-sm mb-8">Kết nối với Google Sheets để đồng bộ dữ liệu theo thời gian thực.</p>
-                        
                         <div className="space-y-6">
                             <div>
                                 <label className="text-xs font-bold text-slate-400 mb-2 block uppercase tracking-widest">Google Apps Script URL</label>
-                                <textarea 
-                                    className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all font-mono text-xs"
-                                    rows="4"
-                                    placeholder="https://script.google.com/macros/s/..."
-                                    value={scriptUrl}
-                                    onChange={(e) => setScriptUrl(e.target.value)}
-                                />
+                                <textarea className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all font-mono text-xs" rows="4" placeholder="https://script.google.com/macros/s/..." value={scriptUrl} onChange={(e) => setScriptUrl(e.target.value)} />
                             </div>
-                            <button 
-                                onClick={() => {
-                                    localStorage.setItem('tg_script_url', scriptUrl);
-                                    notify("Đã lưu cấu hình. Đang tải lại dữ liệu...");
-                                    loadData();
-                                }}
-                                className="w-full bg-brand-600 text-white py-5 rounded-2xl font-bold hover:bg-brand-700 transition-all shadow-xl shadow-brand-100"
-                            >
-                                Lưu cấu hình & Đồng bộ
-                            </button>
+                            <button onClick={() => { localStorage.setItem('tg_script_url', scriptUrl); notify("Đã lưu cấu hình. Đang tải lại dữ liệu..."); loadData(); }} className="w-full bg-brand-600 text-white py-5 rounded-2xl font-bold hover:bg-brand-700 transition-all shadow-xl shadow-brand-100">Lưu cấu hình & Đồng bộ</button>
                         </div>
                     </div>
                 </div>
@@ -304,13 +236,12 @@
 
             return (
                 <div className="flex h-full relative">
-                    {/* Sidebar */}
                     <aside className="w-64 bg-slate-900 flex-shrink-0 flex flex-col shadow-2xl z-20">
                         <div className="p-8 flex flex-col items-center bg-slate-800/30 border-b border-slate-700/50">
-                            {/* Logo */}
+                            {/* Đã sửa tên file ảnh ở đây */}
                             <div className="w-16 h-16 rounded-2xl bg-brand-500 mb-4 flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-brand-500/20 overflow-hidden relative">
                                 <span className="absolute z-0">📄</span>
-                                <img src="./tachnen.jpg" alt="Logo" className="w-full h-full object-cover relative z-10" onError={(e)=>e.target.style.display='none'} />
+                                <img src="./tachnen.png" alt="Logo" className="w-full h-full object-cover relative z-10" onError={(e)=>e.target.style.display='none'} />
                             </div>
                             <h1 className="text-white font-extrabold text-sm leading-tight tracking-tight text-center">tiệm giấy <span className="text-brand-500 text-lg font-black">Thứ Ba</span></h1>
                         </div>
@@ -321,18 +252,12 @@
                             <button onClick={() => setActiveTab('products')} className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all font-semibold text-left ${activeTab === 'products' ? 'nav-active' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span>📈 Định mức</span></button>
                             <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all font-semibold text-left ${activeTab === 'settings' ? 'nav-active' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span>⚙️ Cài đặt</span></button>
                         </nav>
-                        
-                        <div className="p-5 text-[10px] font-bold text-slate-500 text-center border-t border-slate-800/50 tracking-widest uppercase">
-                            {isSaving ? <span className="text-brand-500 animate-pulse">Đang lưu mây...</span> : <span>Đã đồng bộ ✓</span>}
-                        </div>
+                        <div className="p-5 text-[10px] font-bold text-slate-500 text-center border-t border-slate-800/50 tracking-widest uppercase">{isSaving ? <span className="text-brand-500 animate-pulse">Đang lưu mây...</span> : <span>Đã đồng bộ ✓</span>}</div>
                     </aside>
 
-                    {/* Main */}
                     <main className="flex-1 flex flex-col min-w-0 bg-[#f8fafc] relative h-full overflow-hidden">
                         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-10 shadow-sm flex-shrink-0 z-10">
-                            <h2 className="font-bold text-xl text-slate-800 tracking-tight">
-                                {activeTab === 'dashboard' ? 'Báo cáo giá vốn' : activeTab === 'inventory' ? 'Quản lý kho' : activeTab === 'products' ? 'Thiết lập sản phẩm' : 'Cấu hình hệ thống'}
-                            </h2>
+                            <h2 className="font-bold text-xl text-slate-800 tracking-tight">{activeTab === 'dashboard' ? 'Báo cáo giá vốn' : activeTab === 'inventory' ? 'Quản lý kho' : activeTab === 'products' ? 'Thiết lập sản phẩm' : 'Cấu hình hệ thống'}</h2>
                             {isLoading && <div className="text-xs font-bold text-brand-600 bg-brand-50 px-4 py-1.5 rounded-full animate-pulse">Đang tải dữ liệu...</div>}
                         </header>
 
@@ -354,12 +279,9 @@
                                         <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
                                             <h3 className="font-bold text-slate-800 mb-6 text-emerald-600">📥 Nhập kho thực tế</h3>
                                             <form onSubmit={addPurchase} className="space-y-5">
-                                                {/* Đã thêm hàm sort() để sắp xếp danh sách thả xuống theo A-Z */}
                                                 <select name="materialId" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none" required>
                                                     <option value="">Chọn nguyên liệu</option>
-                                                    {[...materials]
-                                                        .sort((a, b) => a.name.localeCompare(b.name))
-                                                        .map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                                    {[...materials].sort((a, b) => a.name.localeCompare(b.name)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                                                 </select>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <input name="quantity" type="number" step="any" placeholder="SL" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" required />
@@ -374,16 +296,13 @@
                                         <div className="px-8 py-6 border-b bg-slate-50/50 flex justify-between items-center">
                                             <h3 className="font-bold text-slate-700">🕒 Nhật ký nhập kho</h3>
                                             <div className="flex gap-4">
-                                                {/* Thêm nút Xuất Excel cho phần lịch sử nhập kho */}
                                                 <button onClick={exportPurchaseHistory} className="text-xs font-bold text-brand-600 bg-brand-50 px-4 py-2 rounded-xl hover:bg-brand-100 transition-colors">📥 Xuất Excel</button>
                                                 <button onClick={() => { if(confirm("Xóa toàn bộ dữ liệu?")) { setPurchases([]); syncData(materials, [], products); } }} className="text-xs font-bold text-red-400 hover:text-red-500">Làm sạch</button>
                                             </div>
                                         </div>
                                         <div className="overflow-auto flex-1 custom-scrollbar">
                                             <table className="w-full text-left text-sm">
-                                                <thead className="bg-slate-50 text-[11px] font-bold text-slate-400 border-b sticky top-0">
-                                                    <tr><th className="px-8 py-4">Ngày</th><th className="px-8 py-4">Tên hàng</th><th className="px-8 py-4 text-right">SL</th><th className="px-8 py-4 text-right">Thành tiền</th></tr>
-                                                </thead>
+                                                <thead className="bg-slate-50 text-[11px] font-bold text-slate-400 border-b sticky top-0"><tr><th className="px-8 py-4">Ngày</th><th className="px-8 py-4">Tên hàng</th><th className="px-8 py-4 text-right">SL</th><th className="px-8 py-4 text-right">Thành tiền</th></tr></thead>
                                                 <tbody className="divide-y divide-slate-100">
                                                     {[...purchases].reverse().map(p => (
                                                         <tr key={p.id}>
@@ -411,9 +330,7 @@
                                                 <input type="number" placeholder="Phụ phí (gỗ...)" value={newProduct.customCost} onChange={e => setNewProduct({...newProduct, customCost: e.target.value})} className="px-5 py-3 border border-slate-200 rounded-2xl" />
                                             </div>
                                             <div className="flex flex-wrap gap-2">
-                                                {materials.map(m => (
-                                                    <button key={m.id} onClick={() => setNewProduct({...newProduct, recipe: [...newProduct.recipe, { materialId: m.id, name: m.name, amount: 0, wastage: 0, unit: m.unit }]})} className="px-4 py-2 bg-slate-100 text-xs font-bold rounded-xl hover:bg-brand-500 hover:text-white transition">+ {m.name}</button>
-                                                ))}
+                                                {materials.map(m => (<button key={m.id} onClick={() => setNewProduct({...newProduct, recipe: [...newProduct.recipe, { materialId: m.id, name: m.name, amount: 0, wastage: 0, unit: m.unit }]})} className="px-4 py-2 bg-slate-100 text-xs font-bold rounded-xl hover:bg-brand-500 hover:text-white transition">+ {m.name}</button>))}
                                             </div>
                                         </div>
                                         <div className="bg-slate-50/50 p-8 rounded-[2rem] border-2 border-dashed border-slate-200">
@@ -447,16 +364,8 @@
                                                     {p.recipe.map((r, i) => <div key={i} className="flex justify-between"><span>• {r.name}</span><span className="font-bold">{r.amount} {r.unit}</span></div>)}
                                                 </div>
                                                 <div className="mt-6 pt-4 border-t border-slate-100 space-y-2 text-[11px] text-slate-500 font-medium">
-                                                    <div className="flex justify-between">
-                                                        <span>Bao bì & Công:</span>
-                                                        <span>{(Number(p.packagingCost||0) + Number(p.laborCost||0)).toLocaleString()} đ</span>
-                                                    </div>
-                                                    {p.customCost > 0 && (
-                                                        <div className="flex justify-between text-brand-600 font-bold">
-                                                            <span>Vật tư linh hoạt:</span>
-                                                            <span>{Number(p.customCost||0).toLocaleString()} đ</span>
-                                                        </div>
-                                                    )}
+                                                    <div className="flex justify-between"><span>Bao bì & Công:</span><span>{(Number(p.packagingCost||0) + Number(p.laborCost||0)).toLocaleString()} đ</span></div>
+                                                    {p.customCost > 0 && <div className="flex justify-between text-brand-600 font-bold"><span>Vật tư linh hoạt:</span><span>{Number(p.customCost||0).toLocaleString()} đ</span></div>}
                                                 </div>
                                             </div>
                                         ))}
@@ -464,21 +373,20 @@
                                 </div>
                             )}
                         </div>
-                        
-                        {showNotification && (
-                            <div className="fixed bottom-10 right-10 bg-slate-900 text-white px-8 py-5 rounded-3xl shadow-2xl z-[100] animate-bounce">
-                                <span className="font-bold text-sm">{showNotification}</span>
-                            </div>
-                        )}
+                        {showNotification && (<div className="fixed bottom-10 right-10 bg-slate-900 text-white px-8 py-5 rounded-3xl shadow-2xl z-[100] animate-bounce"><span className="font-bold text-sm">{showNotification}</span></div>)}
                     </main>
                 </div>
             );
         };
 
-        window.addEventListener('load', () => {
-            const root = ReactDOM.createRoot(document.getElementById('root'));
-            root.render(<App />);
-        });
+        window.addEventListener('load', () => { const root = ReactDOM.createRoot(document.getElementById('root')); root.render(<App />); });
+        
+        // Cài đặt Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW fail: ', err));
+            });
+        }
     </script>
 </body>
 </html>
