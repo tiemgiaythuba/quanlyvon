@@ -2,9 +2,8 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tiệm giấy Thứ Ba - Quản lý giá vốn</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tiệm giấy Thứ Ba - Quản lý giá vốn</title>
     <link rel="icon" href="./tachnen.png">
     <link rel="shortcut icon" href="./tachnen.png">
     
@@ -12,8 +11,10 @@
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="tiệm giấy Thứ Ba - Quản lý giá vốn">
-    <link rel="apple-touch-icon" href="./tachnen.png"> <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="apple-mobile-web-app-title" content="Tiệm Thứ Ba">
+    <link rel="apple-touch-icon" href="./tachnen.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -32,12 +33,14 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; -webkit-font-smoothing: antialiased; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         .nav-active { background-color: #ea580c !important; color: white !important; box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25); }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        /* Ngăn chặn zoom khi ấn vào input trên điện thoại */
+        input[type="text"], input[type="number"], select, textarea { font-size: 16px; }
     </style>
 </head>
 <body class="text-slate-800 h-screen overflow-hidden">
@@ -48,6 +51,8 @@
 
         const App = () => {
             const [activeTab, setActiveTab] = useState('dashboard');
+            const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Trạng thái đóng/mở menu mobile
+            
             const [materials, setMaterials] = useState([]);
             const [purchases, setPurchases] = useState([]);
             const [products, setProducts] = useState([]);
@@ -57,7 +62,6 @@
             
             const [scriptUrl, setScriptUrl] = useState(localStorage.getItem('tg_script_url') || '');
             const [newProduct, setNewProduct] = useState({ name: '', recipe: [], packagingCost: 0, laborCost: 0, customCost: 0 });
-            const fileInputRef = useRef(null);
 
             useEffect(() => { if (!scriptUrl) return; loadData(); }, []);
 
@@ -69,10 +73,10 @@
                     setMaterials(data.materials || []);
                     setPurchases(data.purchases || []);
                     setProducts(data.products || []);
-                    notify("Đã đồng bộ dữ liệu từ máy chủ");
+                    notify("Đã tải dữ liệu");
                 } catch (err) {
                     console.error(err);
-                    notify("Không thể kết nối Script. Vui lòng kiểm tra lại cài đặt.");
+                    notify("Không thể kết nối. Vui lòng kiểm tra cấu hình.");
                 } finally { setIsLoading(false); }
             };
 
@@ -83,13 +87,19 @@
                     await fetch(scriptUrl, { method: 'POST', body: JSON.stringify({ materials: m, purchases: pur, products: pro }) });
                 } catch (err) {
                     console.error(err);
-                    notify("Lỗi lưu dữ liệu lên máy chủ!");
+                    notify("Lỗi lưu dữ liệu!");
                 } finally { setIsSaving(false); }
             };
 
             const notify = (msg) => {
                 setShowNotification(msg);
                 setTimeout(() => setShowNotification(null), 3000);
+            };
+
+            // Hàm chuyển tab và tự động đóng menu trên điện thoại
+            const switchTab = (tab) => {
+                setActiveTab(tab);
+                setIsSidebarOpen(false);
             };
 
             const materialCosts = useMemo(() => {
@@ -145,7 +155,7 @@
             };
 
             const deleteMaterial = (id) => {
-                if (purchases.some(p => p.materialId === id)) return notify("Dữ liệu đã có nhập kho, không thể xóa");
+                if (purchases.some(p => p.materialId === id)) return notify("Dã có nhập kho, không thể xóa");
                 const newM = materials.filter(m => m.id !== id);
                 setMaterials(newM); syncData(newM, purchases, products);
             };
@@ -164,154 +174,185 @@
             };
 
             const DashboardView = () => (
-                <div className="flex-1 overflow-auto p-8 space-y-8">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                            <p className="text-sm font-medium text-slate-500">📦 Tổng nguyên liệu</p>
-                            <p className="text-3xl font-bold text-slate-900 mt-2">{materials.length}</p>
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-8">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                        <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-200">
+                            <p className="text-xs md:text-sm font-medium text-slate-500">📦 Tổng nguyên liệu</p>
+                            <p className="text-2xl md:text-3xl font-bold text-slate-900 mt-1 md:mt-2">{materials.length}</p>
                         </div>
-                        <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                            <p className="text-sm font-medium text-slate-500">🛒 Số lần nhập hàng</p>
-                            <p className="text-3xl font-bold text-slate-900 mt-2">{purchases.length}</p>
+                        <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-200">
+                            <p className="text-xs md:text-sm font-medium text-slate-500">🛒 Số lần nhập</p>
+                            <p className="text-2xl md:text-3xl font-bold text-slate-900 mt-1 md:mt-2">{purchases.length}</p>
                         </div>
-                        <div className="bg-white p-6 rounded-2xl border border-brand-100 bg-brand-50/20">
-                            <p className="text-sm font-medium text-brand-600">📝 Sản phẩm định mức</p>
-                            <p className="text-3xl font-bold text-brand-600 mt-2">{products.length}</p>
+                        <div className="bg-white p-4 md:p-6 rounded-2xl border border-brand-100 bg-brand-50/20">
+                            <p className="text-xs md:text-sm font-medium text-brand-600">📝 Định mức SP</p>
+                            <p className="text-2xl md:text-3xl font-bold text-brand-600 mt-1 md:mt-2">{products.length}</p>
                         </div>
                         <button onClick={() => {
                             const bom = '\uFEFF';
                             const csv = "Tên;Đơn vị;Giá TB\n" + materials.map(m => `${m.name};${m.unit};${Math.round(materialCosts[m.id])}`).join("\n");
                             const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
                             const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "bao_cao_giathuba.csv"; link.click();
-                        }} className="bg-slate-900 text-white p-6 rounded-2xl shadow-lg hover:bg-slate-800 transition flex items-center justify-between group text-left">
-                            <div><p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Báo cáo</p><p className="text-lg font-bold">Xuất Excel</p></div>
-                            <span className="text-2xl group-hover:scale-110 transition">📥</span>
+                        }} className="bg-slate-900 text-white p-4 md:p-6 rounded-2xl shadow-lg hover:bg-slate-800 transition flex items-center justify-between group text-left">
+                            <div><p className="text-[10px] md:text-xs font-semibold text-slate-400 uppercase tracking-wider">Báo cáo</p><p className="text-base md:text-lg font-bold">Xuất Excel</p></div>
+                            <span className="text-xl md:text-2xl group-hover:scale-110 transition">📥</span>
                         </button>
                     </div>
 
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="px-6 py-5 bg-slate-50/50 border-b border-slate-200 flex items-center gap-3">
-                            <span className="text-lg">⚠️</span>
-                            <h3 className="font-bold text-slate-800 text-base">Giá vốn bình quân nguyên liệu</h3>
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                        <div className="px-4 py-4 md:px-6 md:py-5 bg-slate-50/50 border-b border-slate-200 flex items-center gap-2 md:gap-3">
+                            <span className="text-base md:text-lg">⚠️</span>
+                            <h3 className="font-bold text-slate-800 text-sm md:text-base">Giá vốn bình quân nguyên liệu</h3>
                         </div>
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 border-b">
-                                <tr>
-                                    <th className="px-8 py-4">Tên nguyên liệu</th>
-                                    <th className="px-8 py-4">Đơn vị</th>
-                                    <th className="px-8 py-4 text-right">Giá bình quân</th>
-                                    <th className="px-8 py-4 text-right">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y text-sm">
-                                {materials.map(m => (
-                                    <tr key={m.id} className="hover:bg-slate-50 transition group">
-                                        <td className="px-8 py-4 font-semibold text-slate-700">{m.name}</td>
-                                        <td className="px-8 py-4 text-slate-500">{m.unit}</td>
-                                        <td className="px-8 py-4 text-right font-bold text-brand-600">{Math.round(materialCosts[m.id]).toLocaleString()} đ</td>
-                                        <td className="px-8 py-4 text-right"><button onClick={() => deleteMaterial(m.id)} className="text-slate-300 hover:text-red-500 transition font-medium px-2">Xóa</button></td>
+                        <div className="overflow-x-auto w-full custom-scrollbar">
+                            <table className="w-full text-left whitespace-nowrap min-w-[500px]">
+                                <thead className="bg-slate-50 text-[10px] md:text-[11px] font-bold text-slate-500 border-b">
+                                    <tr>
+                                        <th className="px-4 py-3 md:px-8 md:py-4">Tên nguyên liệu</th>
+                                        <th className="px-4 py-3 md:px-8 md:py-4">Đơn vị</th>
+                                        <th className="px-4 py-3 md:px-8 md:py-4 text-right">Giá bình quân</th>
+                                        <th className="px-4 py-3 md:px-8 md:py-4 text-right">Thao tác</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y text-xs md:text-sm">
+                                    {materials.map(m => (
+                                        <tr key={m.id} className="hover:bg-slate-50 transition group">
+                                            <td className="px-4 py-3 md:px-8 md:py-4 font-semibold text-slate-700">{m.name}</td>
+                                            <td className="px-4 py-3 md:px-8 md:py-4 text-slate-500">{m.unit}</td>
+                                            <td className="px-4 py-3 md:px-8 md:py-4 text-right font-bold text-brand-600">{Math.round(materialCosts[m.id]).toLocaleString()} đ</td>
+                                            <td className="px-4 py-3 md:px-8 md:py-4 text-right"><button onClick={() => deleteMaterial(m.id)} className="text-slate-300 hover:text-red-500 transition font-medium px-2">Xóa</button></td>
+                                        </tr>
+                                    ))}
+                                    {materials.length === 0 && <tr><td colSpan="4" className="p-8 text-center text-slate-400 italic text-xs">Chưa có dữ liệu</td></tr>}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             );
 
             const SettingsView = () => (
-                <div className="flex-1 p-12 max-w-2xl mx-auto space-y-10">
-                    <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-200">
-                        <h3 className="text-2xl font-black text-slate-800 mb-2">⚙️ Cài đặt hệ thống</h3>
-                        <p className="text-slate-500 text-sm mb-8">Kết nối với Google Sheets để đồng bộ dữ liệu theo thời gian thực.</p>
-                        <div className="space-y-6">
+                <div className="flex-1 p-4 md:p-12 space-y-6 overflow-y-auto">
+                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-slate-200 max-w-2xl mx-auto">
+                        <h3 className="text-xl md:text-2xl font-black text-slate-800 mb-2">⚙️ Cài đặt hệ thống</h3>
+                        <p className="text-slate-500 text-xs md:text-sm mb-6 md:mb-8">Kết nối với Google Sheets để đồng bộ dữ liệu.</p>
+                        <div className="space-y-4 md:space-y-6">
                             <div>
-                                <label className="text-xs font-bold text-slate-400 mb-2 block uppercase tracking-widest">Google Apps Script URL</label>
-                                <textarea className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all font-mono text-xs" rows="4" placeholder="https://script.google.com/macros/s/..." value={scriptUrl} onChange={(e) => setScriptUrl(e.target.value)} />
+                                <label className="text-[10px] md:text-xs font-bold text-slate-400 mb-2 block uppercase tracking-widest">Google Apps Script URL</label>
+                                <textarea className="w-full px-4 py-3 md:px-6 md:py-4 bg-slate-50 border border-slate-200 rounded-xl md:rounded-2xl outline-none focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all font-mono text-xs md:text-sm" rows="5" placeholder="https://script.google.com/macros/s/..." value={scriptUrl} onChange={(e) => setScriptUrl(e.target.value)} />
                             </div>
-                            <button onClick={() => { localStorage.setItem('tg_script_url', scriptUrl); notify("Đã lưu cấu hình. Đang tải lại dữ liệu..."); loadData(); }} className="w-full bg-brand-600 text-white py-5 rounded-2xl font-bold hover:bg-brand-700 transition-all shadow-xl shadow-brand-100">Lưu cấu hình & Đồng bộ</button>
+                            <button onClick={() => { localStorage.setItem('tg_script_url', scriptUrl); notify("Đã lưu. Đang tải lại..."); loadData(); }} className="w-full bg-brand-600 text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-bold hover:bg-brand-700 transition-all shadow-xl shadow-brand-100 text-sm md:text-base">Lưu cấu hình & Đồng bộ</button>
                         </div>
                     </div>
                 </div>
             );
 
             return (
-                <div className="flex h-full relative">
-                    <aside className="w-64 bg-slate-900 flex-shrink-0 flex flex-col shadow-2xl z-20">
-                        <div className="p-8 flex flex-col items-center bg-slate-800/30 border-b border-slate-700/50">
-                            {/* Đã sửa tên file ảnh ở đây */}
-                            <div className="w-16 h-16 rounded-2xl bg-brand-500 mb-4 flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-brand-500/20 overflow-hidden relative">
+                <div className="flex h-full relative w-full overflow-hidden">
+                    
+                    {/* Overlay đóng menu trên Mobile */}
+                    {isSidebarOpen && (
+                        <div className="fixed inset-0 bg-slate-900/60 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsSidebarOpen(false)}></div>
+                    )}
+
+                    {/* Sidebar */}
+                    <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                        {/* Thu gọn phần Logo và Tiêu đề */}
+                        <div className="p-4 md:p-5 flex flex-col items-center bg-slate-800/30 border-b border-slate-700/50">
+                            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-brand-500 mb-2 md:mb-3 flex items-center justify-center text-white text-xl md:text-2xl font-black shadow-lg shadow-brand-500/20 overflow-hidden relative">
                                 <span className="absolute z-0">📄</span>
                                 <img src="./tachnen.png" alt="Logo" className="w-full h-full object-cover relative z-10" onError={(e)=>e.target.style.display='none'} />
                             </div>
-                            <h1 className="text-white font-extrabold text-sm leading-tight tracking-tight text-center">tiệm giấy <span className="text-brand-500 text-lg font-black">Thứ Ba</span></h1>
+                            <h1 className="text-white font-extrabold text-[11px] md:text-xs leading-tight tracking-tight text-center">Tiệm giấy <br/><span className="text-brand-500 text-sm md:text-base font-black">Thứ Ba</span></h1>
                         </div>
                         
-                        <nav className="flex-1 px-4 py-8 space-y-3">
-                            <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all font-semibold text-left ${activeTab === 'dashboard' ? 'nav-active' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span>🏠 Tổng quan</span></button>
-                            <button onClick={() => setActiveTab('inventory')} className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all font-semibold text-left ${activeTab === 'inventory' ? 'nav-active' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span>🛒 Kho hàng</span></button>
-                            <button onClick={() => setActiveTab('products')} className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all font-semibold text-left ${activeTab === 'products' ? 'nav-active' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span>📈 Định mức</span></button>
-                            <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all font-semibold text-left ${activeTab === 'settings' ? 'nav-active' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span>⚙️ Cài đặt</span></button>
+                        <nav className="flex-1 px-3 py-6 space-y-2 overflow-y-auto custom-scrollbar">
+                            <button onClick={() => switchTab('dashboard')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all font-semibold text-left text-sm md:text-base ${activeTab === 'dashboard' ? 'nav-active' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span>🏠 Tổng quan</span></button>
+                            <button onClick={() => switchTab('inventory')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all font-semibold text-left text-sm md:text-base ${activeTab === 'inventory' ? 'nav-active' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span>🛒 Kho hàng</span></button>
+                            <button onClick={() => switchTab('products')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all font-semibold text-left text-sm md:text-base ${activeTab === 'products' ? 'nav-active' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span>📈 Định mức</span></button>
+                            <button onClick={() => switchTab('settings')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all font-semibold text-left text-sm md:text-base ${activeTab === 'settings' ? 'nav-active' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span>⚙️ Cài đặt</span></button>
                         </nav>
-                        <div className="p-5 text-[10px] font-bold text-slate-500 text-center border-t border-slate-800/50 tracking-widest uppercase">{isSaving ? <span className="text-brand-500 animate-pulse">Đang lưu mây...</span> : <span>Đã đồng bộ ✓</span>}</div>
+                        <div className="p-4 text-[9px] md:text-[10px] font-bold text-slate-500 text-center border-t border-slate-800/50 tracking-widest uppercase bg-slate-900 z-10">
+                            {isSaving ? <span className="text-brand-500 animate-pulse">Đang lưu mây...</span> : <span>Đã đồng bộ ✓</span>}
+                        </div>
                     </aside>
 
+                    {/* Main Content */}
                     <main className="flex-1 flex flex-col min-w-0 bg-[#f8fafc] relative h-full overflow-hidden">
-                        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-10 shadow-sm flex-shrink-0 z-10">
-                            <h2 className="font-bold text-xl text-slate-800 tracking-tight">{activeTab === 'dashboard' ? 'Báo cáo giá vốn' : activeTab === 'inventory' ? 'Quản lý kho' : activeTab === 'products' ? 'Thiết lập sản phẩm' : 'Cấu hình hệ thống'}</h2>
-                            {isLoading && <div className="text-xs font-bold text-brand-600 bg-brand-50 px-4 py-1.5 rounded-full animate-pulse">Đang tải dữ liệu...</div>}
+                        
+                        {/* Header có nút Hamburger */}
+                        <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center px-4 md:px-10 shadow-sm flex-shrink-0 z-10 sticky top-0">
+                            <button className="md:hidden mr-3 p-2 -ml-2 text-slate-500 hover:text-brand-500 transition-colors rounded-lg" onClick={() => setIsSidebarOpen(true)}>
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                            </button>
+                            <h2 className="font-bold text-base md:text-xl text-slate-800 tracking-tight flex-1 line-clamp-1">
+                                {activeTab === 'dashboard' ? 'Báo cáo giá vốn' : activeTab === 'inventory' ? 'Quản lý kho' : activeTab === 'products' ? 'Thiết lập sản phẩm' : 'Cấu hình hệ thống'}
+                            </h2>
+                            {isLoading && <div className="text-[10px] md:text-xs font-bold text-brand-600 bg-brand-50 px-3 py-1.5 rounded-full animate-pulse whitespace-nowrap ml-2">Đang tải...</div>}
                         </header>
 
-                        <div className="flex-1 overflow-auto">
+                        {/* Content Area */}
+                        <div className="flex-1 overflow-y-auto w-full relative">
                             {activeTab === 'dashboard' && <DashboardView />}
                             {activeTab === 'settings' && <SettingsView />}
 
                             {activeTab === 'inventory' && (
-                                <div className="p-10 grid grid-cols-1 lg:grid-cols-3 gap-10">
-                                    <div className="space-y-8">
-                                        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-                                            <h3 className="font-bold text-slate-800 mb-6">➕ Thêm nguyên liệu</h3>
-                                            <form onSubmit={addMaterial} className="space-y-5">
-                                                <input name="name" placeholder="Tên nguyên liệu..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" required />
-                                                <input name="unit" placeholder="Đơn vị (Kg, Cái...)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" required />
-                                                <button className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold">Lưu danh mục</button>
+                                <div className="p-4 md:p-10 grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-10 max-w-full">
+                                    <div className="space-y-6 md:space-y-8">
+                                        <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
+                                            <h3 className="font-bold text-slate-800 mb-4 md:mb-6 text-sm md:text-base">➕ Thêm nguyên liệu</h3>
+                                            <form onSubmit={addMaterial} className="space-y-4 md:space-y-5">
+                                                <input name="name" placeholder="Tên nguyên liệu..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 text-sm" required />
+                                                <input name="unit" placeholder="Đơn vị (Kg, Cái...)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 text-sm" required />
+                                                <button className="w-full bg-slate-900 text-white py-3 md:py-3.5 rounded-xl font-bold text-sm">Lưu danh mục</button>
                                             </form>
                                         </div>
-                                        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-                                            <h3 className="font-bold text-slate-800 mb-6 text-emerald-600">📥 Nhập kho thực tế</h3>
-                                            <form onSubmit={addPurchase} className="space-y-5">
-                                                <select name="materialId" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none" required>
+                                        <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
+                                            <h3 className="font-bold text-slate-800 mb-4 md:mb-6 text-emerald-600 text-sm md:text-base">📥 Nhập kho thực tế</h3>
+                                            <form onSubmit={addPurchase} className="space-y-4 md:space-y-5">
+                                                <select name="materialId" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm" required>
                                                     <option value="">Chọn nguyên liệu</option>
                                                     {[...materials].sort((a, b) => a.name.localeCompare(b.name)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                                                 </select>
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <input name="quantity" type="number" step="any" placeholder="SL" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" required />
-                                                    <input name="totalCost" type="number" placeholder="Tổng tiền (đ)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-brand-600" required />
+                                                <div className="grid grid-cols-2 gap-3 md:gap-4">
+                                                    <input name="quantity" type="number" step="any" placeholder="SL" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" required />
+                                                    <input name="totalCost" type="number" placeholder="Tổng tiền (đ)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-brand-600 text-sm" required />
                                                 </div>
-                                                <input name="date" type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" defaultValue={new Date().toISOString().split('T')[0]} />
-                                                <button className="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-bold">Ghi nhận nhập kho</button>
+                                                <input name="date" type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" defaultValue={new Date().toISOString().split('T')[0]} />
+                                                <button className="w-full bg-emerald-600 text-white py-3 md:py-3.5 rounded-xl font-bold text-sm shadow-md shadow-emerald-100">Ghi nhận nhập kho</button>
                                             </form>
                                         </div>
                                     </div>
-                                    <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-                                        <div className="px-8 py-6 border-b bg-slate-50/50 flex justify-between items-center">
-                                            <h3 className="font-bold text-slate-700">🕒 Nhật ký nhập kho</h3>
-                                            <div className="flex gap-4">
-                                                <button onClick={exportPurchaseHistory} className="text-xs font-bold text-brand-600 bg-brand-50 px-4 py-2 rounded-xl hover:bg-brand-100 transition-colors">📥 Xuất Excel</button>
-                                                <button onClick={() => { if(confirm("Xóa toàn bộ dữ liệu?")) { setPurchases([]); syncData(materials, [], products); } }} className="text-xs font-bold text-red-400 hover:text-red-500">Làm sạch</button>
+                                    
+                                    <div className="lg:col-span-2 bg-white rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[500px] md:h-auto">
+                                        <div className="px-4 py-4 md:px-8 md:py-6 border-b bg-slate-50/50 flex flex-wrap justify-between items-center gap-2">
+                                            <h3 className="font-bold text-slate-700 text-sm md:text-base">🕒 Nhật ký nhập kho</h3>
+                                            <div className="flex gap-2 md:gap-4">
+                                                <button onClick={exportPurchaseHistory} className="text-[10px] md:text-xs font-bold text-brand-600 bg-brand-50 px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl hover:bg-brand-100 transition-colors">📥 Xuất Excel</button>
+                                                <button onClick={() => { if(confirm("Xóa toàn bộ dữ liệu?")) { setPurchases([]); syncData(materials, [], products); } }} className="text-[10px] md:text-xs font-bold text-red-400 hover:text-red-500 px-2">Làm sạch</button>
                                             </div>
                                         </div>
-                                        <div className="overflow-auto flex-1 custom-scrollbar">
-                                            <table className="w-full text-left text-sm">
-                                                <thead className="bg-slate-50 text-[11px] font-bold text-slate-400 border-b sticky top-0"><tr><th className="px-8 py-4">Ngày</th><th className="px-8 py-4">Tên hàng</th><th className="px-8 py-4 text-right">SL</th><th className="px-8 py-4 text-right">Thành tiền</th></tr></thead>
+                                        {/* Bảng vuốt ngang trên điện thoại */}
+                                        <div className="overflow-auto flex-1 custom-scrollbar w-full">
+                                            <table className="w-full text-left text-xs md:text-sm whitespace-nowrap min-w-[500px]">
+                                                <thead className="bg-slate-50 text-[10px] md:text-[11px] font-bold text-slate-400 border-b sticky top-0">
+                                                    <tr>
+                                                        <th className="px-4 py-3 md:px-8 md:py-4">Ngày</th>
+                                                        <th className="px-4 py-3 md:px-8 md:py-4">Tên hàng</th>
+                                                        <th className="px-4 py-3 md:px-8 md:py-4 text-right">SL</th>
+                                                        <th className="px-4 py-3 md:px-8 md:py-4 text-right">Thành tiền</th>
+                                                    </tr>
+                                                </thead>
                                                 <tbody className="divide-y divide-slate-100">
                                                     {[...purchases].reverse().map(p => (
                                                         <tr key={p.id}>
-                                                            <td className="px-8 py-5 text-slate-400">{p.date}</td>
-                                                            <td className="px-8 py-5 font-bold">{materials.find(m => m.id === p.materialId)?.name}</td>
-                                                            <td className="px-8 py-5 text-right">{p.quantity}</td>
-                                                            <td className="px-8 py-5 text-right font-bold">{Math.round(p.quantity * p.price).toLocaleString()}đ</td>
+                                                            <td className="px-4 py-3 md:px-8 md:py-5 text-slate-400">{p.date.substring(5)}</td> {/* Thu gọn ngày trên đt */}
+                                                            <td className="px-4 py-3 md:px-8 md:py-5 font-bold truncate max-w-[120px] md:max-w-none">{materials.find(m => m.id === p.materialId)?.name}</td>
+                                                            <td className="px-4 py-3 md:px-8 md:py-5 text-right">{p.quantity}</td>
+                                                            <td className="px-4 py-3 md:px-8 md:py-5 text-right font-bold text-brand-600">{Math.round(p.quantity * p.price).toLocaleString()}đ</td>
                                                         </tr>
                                                     ))}
+                                                    {purchases.length === 0 && <tr><td colSpan="4" className="text-center py-10 text-slate-400 text-xs italic">Chưa có lịch sử nhập kho</td></tr>}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -320,52 +361,65 @@
                             )}
 
                             {activeTab === 'products' && (
-                                <div className="p-10 space-y-10">
-                                    <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-200 grid grid-cols-1 lg:grid-cols-2 gap-16">
-                                        <div className="space-y-8">
-                                            <input value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} placeholder="Tên sản phẩm mới..." className="w-full px-8 py-5 bg-slate-50 border-none rounded-3xl font-bold text-2xl outline-none focus:ring-4 focus:ring-brand-500/10" />
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                                <input type="number" placeholder="Chi phí bao bì" value={newProduct.packagingCost} onChange={e => setNewProduct({...newProduct, packagingCost: e.target.value})} className="px-5 py-3 border border-slate-200 rounded-2xl" />
-                                                <input type="number" placeholder="Công nhân (đ)" value={newProduct.laborCost} onChange={e => setNewProduct({...newProduct, laborCost: e.target.value})} className="px-5 py-3 border border-slate-200 rounded-2xl" />
-                                                <input type="number" placeholder="Phụ phí (gỗ...)" value={newProduct.customCost} onChange={e => setNewProduct({...newProduct, customCost: e.target.value})} className="px-5 py-3 border border-slate-200 rounded-2xl" />
+                                <div className="p-4 md:p-10 space-y-8 md:space-y-10">
+                                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-slate-200 grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-16">
+                                        <div className="space-y-6 md:space-y-8">
+                                            <input value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} placeholder="Tên sản phẩm mới..." className="w-full px-6 py-4 md:px-8 md:py-5 bg-slate-50 border-none rounded-2xl md:rounded-3xl font-bold text-lg md:text-2xl outline-none focus:ring-2 focus:ring-brand-500/20" />
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
+                                                <div>
+                                                    <label className="text-[10px] md:text-xs font-bold text-slate-400 mb-1 block">Bao bì (đ)</label>
+                                                    <input type="number" placeholder="0" value={newProduct.packagingCost} onChange={e => setNewProduct({...newProduct, packagingCost: e.target.value})} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] md:text-xs font-bold text-slate-400 mb-1 block">Công nhân (đ)</label>
+                                                    <input type="number" placeholder="0" value={newProduct.laborCost} onChange={e => setNewProduct({...newProduct, laborCost: e.target.value})} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] md:text-xs font-bold text-slate-400 mb-1 block">Phụ phí gỗ... (đ)</label>
+                                                    <input type="number" placeholder="0" value={newProduct.customCost} onChange={e => setNewProduct({...newProduct, customCost: e.target.value})} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm" />
+                                                </div>
                                             </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                {materials.map(m => (<button key={m.id} onClick={() => setNewProduct({...newProduct, recipe: [...newProduct.recipe, { materialId: m.id, name: m.name, amount: 0, wastage: 0, unit: m.unit }]})} className="px-4 py-2 bg-slate-100 text-xs font-bold rounded-xl hover:bg-brand-500 hover:text-white transition">+ {m.name}</button>))}
+                                            <div>
+                                                <p className="text-[10px] md:text-xs font-bold text-slate-400 mb-3 block uppercase tracking-wider">Thêm vật tư:</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {materials.map(m => (<button key={m.id} onClick={() => setNewProduct({...newProduct, recipe: [...newProduct.recipe, { materialId: m.id, name: m.name, amount: 0, wastage: 0, unit: m.unit }]})} className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-100 text-[10px] md:text-xs font-bold rounded-lg hover:bg-brand-500 hover:text-white transition shadow-sm">+ {m.name}</button>))}
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="bg-slate-50/50 p-8 rounded-[2rem] border-2 border-dashed border-slate-200">
-                                            <h4 className="font-bold text-slate-500 mb-6 text-sm">Chi tiết định mức (BOM)</h4>
-                                            <div className="space-y-4 max-h-60 overflow-auto pr-2 custom-scrollbar">
+                                        <div className="bg-slate-50/80 p-5 md:p-8 rounded-2xl md:rounded-[2rem] border-2 border-dashed border-slate-200">
+                                            <h4 className="font-bold text-slate-500 mb-4 md:mb-6 text-xs md:text-sm">Chi tiết định mức (BOM)</h4>
+                                            <div className="space-y-3 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
                                                 {newProduct.recipe.map((item, idx) => (
-                                                    <div key={idx} className="flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm">
-                                                        <span className="flex-1 font-bold text-xs truncate">{item.name}</span>
-                                                        <input type="number" className="w-16 text-right bg-slate-50 p-2 rounded-lg font-bold text-brand-600" value={item.amount} onChange={e => { const updated = [...newProduct.recipe]; updated[idx].amount = Number(e.target.value); setNewProduct({...newProduct, recipe: updated}); }} />
-                                                        <span className="text-[10px] font-bold text-slate-400">{item.unit}</span>
-                                                        <button onClick={() => setNewProduct({...newProduct, recipe: newProduct.recipe.filter((_, i) => i !== idx)})} className="text-slate-300 hover:text-red-500 font-bold">✕</button>
+                                                    <div key={idx} className="flex items-center gap-2 md:gap-4 bg-white p-3 md:p-4 rounded-xl shadow-sm border border-slate-100">
+                                                        <span className="flex-1 font-bold text-[11px] md:text-xs truncate">{item.name}</span>
+                                                        <input type="number" className="w-14 md:w-16 text-right bg-slate-50 p-1.5 md:p-2 rounded-lg font-bold text-brand-600 text-xs md:text-sm outline-none" value={item.amount} onChange={e => { const updated = [...newProduct.recipe]; updated[idx].amount = Number(e.target.value); setNewProduct({...newProduct, recipe: updated}); }} />
+                                                        <span className="text-[9px] md:text-[10px] font-bold text-slate-400 w-6">{item.unit}</span>
+                                                        <button onClick={() => setNewProduct({...newProduct, recipe: newProduct.recipe.filter((_, i) => i !== idx)})} className="text-slate-300 hover:text-red-500 font-bold px-2">✕</button>
                                                     </div>
                                                 ))}
+                                                {newProduct.recipe.length === 0 && <p className="text-center text-slate-300 italic text-[11px] py-10">Chưa chọn vật tư</p>}
                                             </div>
-                                            <button onClick={saveProduct} className="w-full bg-brand-600 text-white py-4 rounded-2xl font-bold mt-8 shadow-lg shadow-brand-100">Lưu sản phẩm</button>
+                                            <button onClick={saveProduct} className="w-full bg-brand-600 text-white py-3 md:py-4 rounded-xl md:rounded-2xl font-bold mt-6 md:mt-8 shadow-lg shadow-brand-200 text-sm md:text-base">Lưu sản phẩm</button>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-16">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 pb-16">
                                         {products.map(p => (
-                                            <div key={p.id} className="bg-white rounded-[2rem] p-8 border border-slate-200 flex flex-col h-full">
-                                                <div className="flex justify-between items-start mb-6">
-                                                    <h4 className="text-xl font-black">{p.name}</h4>
-                                                    <button onClick={() => { if(confirm("Xóa sản phẩm?")) { const n = products.filter(pr => pr.id !== p.id); setProducts(n); syncData(materials, purchases, n); }}} className="text-slate-200 hover:text-red-500">✕</button>
+                                            <div key={p.id} className="bg-white rounded-2xl md:rounded-[2rem] p-6 md:p-8 border border-slate-200 flex flex-col h-full shadow-sm relative">
+                                                <div className="flex justify-between items-start mb-4 md:mb-6">
+                                                    <h4 className="text-lg md:text-xl font-black pr-4 leading-tight">{p.name}</h4>
+                                                    <button onClick={() => { if(confirm("Xóa sản phẩm?")) { const n = products.filter(pr => pr.id !== p.id); setProducts(n); syncData(materials, purchases, n); }}} className="text-slate-200 hover:text-red-500 absolute top-6 right-6">✕</button>
                                                 </div>
-                                                <div className="bg-slate-50 p-6 rounded-2xl text-center mb-6">
-                                                    <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Giá vốn dự kiến</p>
-                                                    <p className="text-3xl font-black text-brand-600">{Math.round(calculateProductCOGS(p)).toLocaleString()} đ</p>
+                                                <div className="bg-slate-50 p-4 md:p-6 rounded-xl md:rounded-2xl text-center mb-4 md:mb-6">
+                                                    <p className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-1">Giá vốn dự kiến</p>
+                                                    <p className="text-2xl md:text-3xl font-black text-brand-600">{Math.round(calculateProductCOGS(p)).toLocaleString()} đ</p>
                                                 </div>
-                                                <div className="space-y-2 text-xs text-slate-500 flex-grow">
-                                                    {p.recipe.map((r, i) => <div key={i} className="flex justify-between"><span>• {r.name}</span><span className="font-bold">{r.amount} {r.unit}</span></div>)}
+                                                <div className="space-y-1.5 md:space-y-2 text-[11px] md:text-xs text-slate-500 flex-grow">
+                                                    {p.recipe.map((r, i) => <div key={i} className="flex justify-between border-b border-dashed border-slate-100 pb-1"><span>{r.name}</span><span className="font-bold">{r.amount} {r.unit}</span></div>)}
                                                 </div>
-                                                <div className="mt-6 pt-4 border-t border-slate-100 space-y-2 text-[11px] text-slate-500 font-medium">
-                                                    <div className="flex justify-between"><span>Bao bì & Công:</span><span>{(Number(p.packagingCost||0) + Number(p.laborCost||0)).toLocaleString()} đ</span></div>
-                                                    {p.customCost > 0 && <div className="flex justify-between text-brand-600 font-bold"><span>Vật tư linh hoạt:</span><span>{Number(p.customCost||0).toLocaleString()} đ</span></div>}
+                                                <div className="mt-4 md:mt-6 pt-3 md:pt-4 border-t border-slate-100 space-y-1.5 md:space-y-2 text-[10px] md:text-[11px] text-slate-500 font-medium">
+                                                    <div className="flex justify-between bg-slate-50 px-2 py-1.5 rounded-md"><span>Bao bì & Công:</span><span className="font-bold text-slate-700">{(Number(p.packagingCost||0) + Number(p.laborCost||0)).toLocaleString()} đ</span></div>
+                                                    {p.customCost > 0 && <div className="flex justify-between bg-brand-50 text-brand-700 px-2 py-1.5 rounded-md"><span>Vật tư linh hoạt:</span><span className="font-bold">{Number(p.customCost||0).toLocaleString()} đ</span></div>}
                                                 </div>
                                             </div>
                                         ))}
@@ -373,7 +427,12 @@
                                 </div>
                             )}
                         </div>
-                        {showNotification && (<div className="fixed bottom-10 right-10 bg-slate-900 text-white px-8 py-5 rounded-3xl shadow-2xl z-[100] animate-bounce"><span className="font-bold text-sm">{showNotification}</span></div>)}
+                        
+                        {showNotification && (
+                            <div className="fixed bottom-6 right-6 md:bottom-10 md:right-10 bg-slate-900 text-white px-5 py-3 md:px-8 md:py-5 rounded-2xl md:rounded-3xl shadow-2xl z-[100] animate-bounce">
+                                <span className="font-bold text-xs md:text-sm">{showNotification}</span>
+                            </div>
+                        )}
                     </main>
                 </div>
             );
@@ -381,7 +440,6 @@
 
         window.addEventListener('load', () => { const root = ReactDOM.createRoot(document.getElementById('root')); root.render(<App />); });
         
-        // Cài đặt Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW fail: ', err));
