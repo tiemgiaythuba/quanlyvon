@@ -1,0 +1,16 @@
+{
+  "name": "Tiệm giấy Thứ Ba - Quản lý giá vốn",
+  "short_name": "Tiệm Thứ Ba",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "./tachnen.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
