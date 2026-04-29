@@ -280,7 +280,7 @@
                             <p className="text-2xl md:text-3xl font-bold text-slate-900 mt-1 md:mt-2">{purchases.length}</p>
                         </div>
                         <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-200">
-                            <p className="text-xs md:text-sm font-medium text-slate-500">💰 Tổng chi phí</p>
+                            <p className="text-xs md:text-sm font-medium text-slate-500">Tổng chi phí</p>
                             <p className="text-2xl md:text-3xl font-bold text-amber-600 mt-1 md:mt-2">
                                 {Math.round(purchases.reduce((sum, p) => sum + (p.quantity * p.price), 0)).toLocaleString()} đ
                             </p>
@@ -409,7 +409,7 @@
                                             </h3>
                                             <form onSubmit={addOrUpdateMaterial} className="space-y-4 md:space-y-5">
                                                 <input name="name" key={"name" + (editingMaterial?.id || "new")} defaultValue={editingMaterial?.name || ""} placeholder="Tên nguyên liệu..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 text-sm" required />
-                                                <input name="unit" key={"unit" + (editingMaterial?.id || "new")} defaultValue={editingMaterial?.unit || ""} placeholder="Đơn vị (Kg, Cái...)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 text-sm" required />
+                                                <input name="unit" key={"unit" + (editingMaterial?.id || "new")} defaultValue={editingMaterial?.unit || ""} placeholder="Đơn vị (kg, cái...)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 text-sm" required />
                                                 <button className="w-full bg-slate-900 text-white py-3 md:py-3.5 rounded-xl font-bold text-sm">
                                                     {editingMaterial ? "Cập nhật" : "Lưu danh mục"}
                                                 </button>
@@ -438,7 +438,7 @@
                                                     {[...materials].sort((a, b) => a.name.localeCompare(b.name)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                                                 </select>
                                                 <div className="grid grid-cols-2 gap-3 md:gap-4">
-                                                    <input name="quantity" defaultValue={editingPurchase?.quantity || ''} key={editingPurchase?.id + 'q'} type="number" step="any" placeholder="SL" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" required />
+                                                    <input name="quantity" defaultValue={editingPurchase?.quantity || ''} key={editingPurchase?.id + 'q'} type="number" step="any" placeholder="Số " className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" required />
                                                     <input name="totalCost" defaultValue={editingPurchase ? (editingPurchase.quantity * editingPurchase.price) : ''} key={editingPurchase?.id + 't'} type="number" placeholder="Tổng tiền (đ)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-brand-600 text-sm" required />
                                                 </div>
                                                 <input name="date" defaultValue={editingPurchase?.date || new Date().toISOString().split('T')[0]} key={editingPurchase?.id + 'd'} type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
@@ -508,7 +508,7 @@
                                             {/* ĐÃ SỬA: Form thông tin SP được tinh gọn */}
                                             <div className="flex justify-between items-center">
                                                 <h3 className="font-bold text-slate-800 text-sm md:text-base">
-                                                    {newProduct.id ? "✏️ Sửa định mức sản phẩm" : "✨ Thêm sản phẩm mới"}
+                                                    {newProduct.id ? "✏️ Sửa định mức sản phẩm" : "Thêm sản phẩm mới"}
                                                 </h3>
                                                 {newProduct.id && (
                                                     <button onClick={() => setNewProduct({ id: null, name: '', recipe: [], customCost: 0 })} className="text-[10px] md:text-xs text-slate-400 hover:text-slate-600 font-bold uppercase bg-slate-100 px-3 py-1.5 rounded-lg">
@@ -527,7 +527,7 @@
                                             <div>
                                                 <p className="text-[10px] md:text-xs font-bold text-slate-400 mb-3 block uppercase tracking-wider">Chọn vật tư cấu thành:</p>
                                                 <div className="flex flex-wrap gap-2">
-                                                    {materials.map(m => (<button key={m.id} onClick={() => setNewProduct({...newProduct, recipe: [...newProduct.recipe, { materialId: m.id, name: m.name, amount: 0, costValue: 0, inputType: 'quantity', unit: m.unit }]})} className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-100 text-[10px] md:text-xs font-bold rounded-lg hover:bg-brand-500 hover:text-white transition shadow-sm">+ {m.name}</button>))}
+                                                    {[...materials].sort((a, b) => a.name.localeCompare(b.name)).map(m => (<button type="button" key={m.id} onClick={() => setNewProduct({...newProduct, recipe: [...newProduct.recipe, { materialId: m.id, name: m.name, amount: 0, costValue: 0, inputType: 'quantity', unit: m.unit }]})} className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-100 text-[10px] md:text-xs font-bold rounded-lg hover:bg-brand-500 hover:text-white transition shadow-sm">+ {m.name}</button>))}
                                                 </div>
                                             </div>
                                         </div>
