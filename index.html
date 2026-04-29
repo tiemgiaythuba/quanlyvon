@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>tiệm giấy Thứ Ba - Quản lý giá vốn</title>
+    <title>Tiệm giấy Thứ Ba - Quản lý giá vốn</title>
     <link rel="icon" href="./tachnen.png">
     <link rel="shortcut icon" href="./tachnen.png">
     
@@ -11,7 +11,7 @@
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="tiệm giấy Thứ Ba - Quản lý giá vốn">
+    <meta name="apple-mobile-web-app-title" content="Tiệm giấy Thứ Ba">
     <link rel="apple-touch-icon" href="./tachnen.png">
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -48,6 +48,34 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
+        // TIỆN ÍCH NÉN ẢNH (Bảo vệ Google Sheets không bị quá tải data)
+        const compressImage = (file) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 600;
+                        let width = img.width;
+                        let height = img.height;
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/jpeg', 0.5)); // Nén 50% chất lượng
+                    };
+                };
+                reader.onerror = error => reject(error);
+            });
+        };
+
         const App = () => {
             const [activeTab, setActiveTab] = useState('dashboard');
             const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -61,6 +89,7 @@
             
             const [editingMaterial, setEditingMaterial] = useState(null);
             const [editingPurchase, setEditingPurchase] = useState(null);
+            const [viewingImage, setViewingImage] = useState(null); // Trạng thái xem ảnh hóa đơn
 
             const [scriptUrl, setScriptUrl] = useState(localStorage.getItem('tg_script_url') || '');
             const [newProduct, setNewProduct] = useState({ name: '', recipe: [], packagingCost: 0, laborCost: 0, customCost: 0 });
@@ -118,9 +147,12 @@
             const calculateProductCOGS = (product) => {
                 let ingredientTotal = 0;
                 product.recipe.forEach(item => {
-                    const avgPrice = materialCosts[item.materialId] || 0;
-                    const costWithWastage = (item.amount * avgPrice) / (1 - (item.wastage / 100));
-                    ingredientTotal += costWithWastage;
+                    if (item.inputType === 'cost') {
+                        ingredientTotal += Number(item.costValue || 0);
+                    } else {
+                        const avgPrice = materialCosts[item.materialId] || 0;
+                        ingredientTotal += (Number(item.amount || 0) * avgPrice);
+                    }
                 });
                 return ingredientTotal + Number(product.packagingCost || 0) + Number(product.laborCost || 0) + Number(product.customCost || 0);
             };
@@ -159,24 +191,37 @@
                 }
             };
 
-            const addOrUpdatePurchase = (e) => {
+            // ĐÃ SỬA: Hỗ trợ xử lý ảnh hóa đơn bất đồng bộ (async)
+            const addOrUpdatePurchase = async (e) => {
                 e.preventDefault();
                 const materialId = e.target.materialId.value;
                 const quantity = Number(e.target.quantity.value);
                 const totalCost = Number(e.target.totalCost.value);
                 const date = e.target.date.value || new Date().toISOString().split('T')[0];
+                const fileInput = e.target.receiptImage;
                 
                 if (!materialId || quantity <= 0 || totalCost < 0) return;
                 
                 const price = totalCost / quantity;
-                let newPur;
+                let receiptBase64 = editingPurchase?.receiptImage || null;
 
+                // Nén ảnh nếu người dùng có đính kèm file
+                if (fileInput && fileInput.files.length > 0) {
+                    try {
+                        notify("Đang xử lý ảnh hóa đơn...");
+                        receiptBase64 = await compressImage(fileInput.files[0]);
+                    } catch (err) {
+                        notify("Lỗi xử lý ảnh, hóa đơn sẽ lưu không có ảnh.");
+                    }
+                }
+
+                let newPur;
                 if (editingPurchase) {
-                    newPur = purchases.map(p => p.id === editingPurchase.id ? { ...p, materialId, quantity, price, date } : p);
+                    newPur = purchases.map(p => p.id === editingPurchase.id ? { ...p, materialId, quantity, price, date, receiptImage: receiptBase64 } : p);
                     setEditingPurchase(null);
                     notify("Đã cập nhật dòng nhập kho");
                 } else {
-                    newPur = [...purchases, { id: Date.now().toString(), materialId, quantity, price, date }];
+                    newPur = [...purchases, { id: Date.now().toString(), materialId, quantity, price, date, receiptImage: receiptBase64 }];
                     notify("Đã ghi nhận kho");
                 }
 
@@ -199,7 +244,6 @@
                 notify("Đã lưu định mức sản phẩm");
             };
 
-            // ĐÃ SỬA: Xuất báo cáo sắp xếp theo Ngày thực tế
             const exportPurchaseHistory = () => {
                 if (purchases.length === 0) return notify("Không có dữ liệu để xuất");
                 const bom = '\uFEFF';
@@ -288,6 +332,16 @@
 
             return (
                 <div className="flex h-full relative w-full overflow-hidden">
+                    {/* Modal hiển thị ảnh hóa đơn */}
+                    {viewingImage && (
+                        <div className="fixed inset-0 bg-slate-900/80 z-[150] flex items-center justify-center p-4" onClick={() => setViewingImage(null)}>
+                            <div className="bg-white p-2 rounded-2xl max-w-full max-h-[90vh] overflow-hidden relative" onClick={e => e.stopPropagation()}>
+                                <img src={viewingImage} className="max-w-full max-h-[85vh] object-contain rounded-xl" alt="Hóa đơn" />
+                                <button onClick={() => setViewingImage(null)} className="absolute top-4 right-4 bg-slate-900/50 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold hover:bg-slate-900">✕</button>
+                            </div>
+                        </div>
+                    )}
+
                     {isSidebarOpen && (
                         <div className="fixed inset-0 bg-slate-900/60 z-40 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsSidebarOpen(false)}></div>
                     )}
@@ -299,7 +353,7 @@
                                 <img src="./tachnen.png" alt="Logo" className="w-full h-full object-cover relative z-10" onError={(e)=>e.target.style.display='none'} />
                             </div>
                             <h1 className="text-white font-extrabold text-xs md:text-sm leading-tight tracking-tight text-left">
-                                tiệm giấy <span className="text-brand-500 text-base md:text-lg font-black">Thứ Ba</span>
+                                Tiệm giấy <br/><span className="text-brand-500 text-base md:text-lg font-black">Thứ Ba</span>
                             </h1>
                         </div>
                         
@@ -372,6 +426,14 @@
                                                     <input name="totalCost" defaultValue={editingPurchase ? (editingPurchase.quantity * editingPurchase.price) : ''} key={editingPurchase?.id + 't'} type="number" placeholder="Tổng tiền (đ)" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-brand-600 text-sm" required />
                                                 </div>
                                                 <input name="date" defaultValue={editingPurchase?.date || new Date().toISOString().split('T')[0]} key={editingPurchase?.id + 'd'} type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                                                
+                                                {/* ĐÃ THÊM: Input ảnh hóa đơn (Tùy chọn) */}
+                                                <div>
+                                                    <label className="text-[10px] md:text-xs font-bold text-slate-400 mb-1.5 block">Hóa đơn đính kèm (tùy chọn)</label>
+                                                    <input type="file" name="receiptImage" accept="image/*" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs md:text-sm text-slate-500 file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100" />
+                                                    {editingPurchase?.receiptImage && <p className="text-[10px] text-brand-600 mt-1 italic">* Dòng này đang có hóa đơn. Thêm ảnh mới sẽ ghi đè ảnh cũ.</p>}
+                                                </div>
+
                                                 <button className={`w-full text-white py-3 md:py-3.5 rounded-xl font-bold text-sm shadow-md ${editingPurchase ? 'bg-amber-500 shadow-amber-100 hover:bg-amber-600' : 'bg-emerald-600 shadow-emerald-100 hover:bg-emerald-700'}`}>
                                                     {editingPurchase ? "Cập nhật lần nhập" : "Ghi nhận nhập kho"}
                                                 </button>
@@ -399,10 +461,17 @@
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
-                                                    {/* ĐÃ SỬA: Sắp xếp hiển thị theo ngày mới nhất lên đầu */}
                                                     {[...purchases].sort((a, b) => new Date(b.date) - new Date(a.date)).map(p => (
                                                         <tr key={p.id} className={`transition ${editingPurchase?.id === p.id ? 'bg-amber-50' : 'hover:bg-slate-50'}`}>
-                                                            <td className="px-4 py-3 md:px-8 md:py-5 text-slate-400">{p.date.substring(5)}</td>
+                                                            <td className="px-4 py-3 md:px-8 md:py-5 text-slate-400">
+                                                                {p.date.substring(5)}
+                                                                {/* Nút xem hóa đơn nếu có ảnh */}
+                                                                {p.receiptImage && (
+                                                                    <button onClick={() => setViewingImage(p.receiptImage)} className="ml-2 text-brand-500 hover:text-brand-700" title="Xem hóa đơn">
+                                                                        🖼️
+                                                                    </button>
+                                                                )}
+                                                            </td>
                                                             <td className="px-4 py-3 md:px-8 md:py-5 font-bold truncate max-w-[120px] md:max-w-none">{materials.find(m => m.id === p.materialId)?.name}</td>
                                                             <td className="px-4 py-3 md:px-8 md:py-5 text-right">{p.quantity}</td>
                                                             <td className="px-4 py-3 md:px-8 md:py-5 text-right font-bold text-brand-600">{Math.round(p.quantity * p.price).toLocaleString()}đ</td>
@@ -442,7 +511,8 @@
                                             <div>
                                                 <p className="text-[10px] md:text-xs font-bold text-slate-400 mb-3 block uppercase tracking-wider">Thêm vật tư:</p>
                                                 <div className="flex flex-wrap gap-2">
-                                                    {materials.map(m => (<button key={m.id} onClick={() => setNewProduct({...newProduct, recipe: [...newProduct.recipe, { materialId: m.id, name: m.name, amount: 0, wastage: 0, unit: m.unit }]})} className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-100 text-[10px] md:text-xs font-bold rounded-lg hover:bg-brand-500 hover:text-white transition shadow-sm">+ {m.name}</button>))}
+                                                    {/* ĐÃ SỬA: Mặc định thêm inputType: 'quantity' khi thêm mới vật tư vào BOM */}
+                                                    {materials.map(m => (<button key={m.id} onClick={() => setNewProduct({...newProduct, recipe: [...newProduct.recipe, { materialId: m.id, name: m.name, amount: 0, costValue: 0, inputType: 'quantity', unit: m.unit }]})} className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-100 text-[10px] md:text-xs font-bold rounded-lg hover:bg-brand-500 hover:text-white transition shadow-sm">+ {m.name}</button>))}
                                                 </div>
                                             </div>
                                         </div>
@@ -450,11 +520,32 @@
                                             <h4 className="font-bold text-slate-500 mb-4 md:mb-6 text-xs md:text-sm">Chi tiết định mức (BOM)</h4>
                                             <div className="space-y-3 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
                                                 {newProduct.recipe.map((item, idx) => (
-                                                    <div key={idx} className="flex items-center gap-2 md:gap-4 bg-white p-3 md:p-4 rounded-xl shadow-sm border border-slate-100">
-                                                        <span className="flex-1 font-bold text-[11px] md:text-xs truncate">{item.name}</span>
-                                                        <input type="number" className="w-14 md:w-16 text-right bg-slate-50 p-1.5 md:p-2 rounded-lg font-bold text-brand-600 text-xs md:text-sm outline-none" value={item.amount} onChange={e => { const updated = [...newProduct.recipe]; updated[idx].amount = Number(e.target.value); setNewProduct({...newProduct, recipe: updated}); }} />
-                                                        <span className="text-[9px] md:text-[10px] font-bold text-slate-400 w-6">{item.unit}</span>
-                                                        <button onClick={() => setNewProduct({...newProduct, recipe: newProduct.recipe.filter((_, i) => i !== idx)})} className="text-slate-300 hover:text-red-500 font-bold px-2">✕</button>
+                                                    <div key={idx} className="flex flex-col gap-2 md:gap-3 bg-white p-3 md:p-4 rounded-xl shadow-sm border border-slate-100">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="font-bold text-[11px] md:text-xs truncate text-brand-600">{item.name}</span>
+                                                            <div className="flex gap-2">
+                                                                {/* ĐÃ THÊM: Nút chuyển đổi chế độ nhập Số lượng hoặc nhập số Tiền ước lượng */}
+                                                                <button type="button" onClick={() => { const updated = [...newProduct.recipe]; updated[idx].inputType = updated[idx].inputType === 'cost' ? 'quantity' : 'cost'; setNewProduct({...newProduct, recipe: updated}); }} className="text-[9px] md:text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200 transition font-bold">
+                                                                    {item.inputType === 'cost' ? '⇌ Nhập SL' : '⇌ Nhập tiền'}
+                                                                </button>
+                                                                <button onClick={() => setNewProduct({...newProduct, recipe: newProduct.recipe.filter((_, i) => i !== idx)})} className="text-slate-300 hover:text-red-500 font-bold px-1">✕</button>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {/* Hiển thị form nhập tùy theo chế độ */}
+                                                        <div className="flex items-center gap-2">
+                                                            {item.inputType === 'cost' ? (
+                                                                <>
+                                                                    <input type="number" placeholder="Ước tính số tiền (đ)" className="w-full text-right bg-amber-50 border border-amber-100 p-1.5 md:p-2 rounded-lg font-bold text-amber-700 text-xs md:text-sm outline-none" value={item.costValue || ''} onChange={e => { const updated = [...newProduct.recipe]; updated[idx].costValue = Number(e.target.value); setNewProduct({...newProduct, recipe: updated}); }} />
+                                                                    <span className="text-[9px] md:text-[10px] font-bold text-slate-400 w-8">VNĐ</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <input type="number" placeholder="Số lượng..." className="w-full text-right bg-slate-50 border border-slate-100 p-1.5 md:p-2 rounded-lg font-bold text-brand-600 text-xs md:text-sm outline-none" value={item.amount || ''} onChange={e => { const updated = [...newProduct.recipe]; updated[idx].amount = Number(e.target.value); setNewProduct({...newProduct, recipe: updated}); }} />
+                                                                    <span className="text-[9px] md:text-[10px] font-bold text-slate-400 w-8 truncate">{item.unit}</span>
+                                                                </>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 ))}
                                                 {newProduct.recipe.length === 0 && <p className="text-center text-slate-300 italic text-[11px] py-10">Chưa chọn vật tư</p>}
@@ -475,7 +566,15 @@
                                                     <p className="text-2xl md:text-3xl font-black text-brand-600">{Math.round(calculateProductCOGS(p)).toLocaleString()} đ</p>
                                                 </div>
                                                 <div className="space-y-1.5 md:space-y-2 text-[11px] md:text-xs text-slate-500 flex-grow">
-                                                    {p.recipe.map((r, i) => <div key={i} className="flex justify-between border-b border-dashed border-slate-100 pb-1"><span>{r.name}</span><span className="font-bold">{r.amount} {r.unit}</span></div>)}
+                                                    {/* ĐÃ SỬA: Hiển thị giá trị ước lượng VNĐ nếu ở chế độ cost */}
+                                                    {p.recipe.map((r, i) => (
+                                                        <div key={i} className="flex justify-between border-b border-dashed border-slate-100 pb-1">
+                                                            <span>{r.name}</span>
+                                                            <span className="font-bold">
+                                                                {r.inputType === 'cost' ? <span className="text-amber-600">{Number(r.costValue||0).toLocaleString()} đ</span> : `${r.amount} ${r.unit}`}
+                                                            </span>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                                 <div className="mt-4 md:mt-6 pt-3 md:pt-4 border-t border-slate-100 space-y-1.5 md:space-y-2 text-[10px] md:text-[11px] text-slate-500 font-medium">
                                                     <div className="flex justify-between bg-slate-50 px-2 py-1.5 rounded-md"><span>Bao bì & Công:</span><span className="font-bold text-slate-700">{(Number(p.packagingCost||0) + Number(p.laborCost||0)).toLocaleString()} đ</span></div>
