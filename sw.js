@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tiem-thu-ba-v2';
+const CACHE_NAME = 'tiem-thu-ba-v4';
 const urlsToCache = [
   './',
   './index.html',
