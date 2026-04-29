@@ -473,7 +473,7 @@
                                                     {[...purchases].sort((a, b) => new Date(b.date) - new Date(a.date)).map(p => (
                                                         <tr key={p.id} className={`transition ${editingPurchase?.id === p.id ? 'bg-amber-50' : 'hover:bg-slate-50'}`}>
                                                             <td className="px-4 py-3 md:px-8 md:py-5 text-slate-400">
-                                                                {p.date.substring(5)}
+                                                                {p.date.split('-').reverse().join('/')}
                                                                 {p.receiptImage && (
                                                                     <button onClick={() => setViewingImage(p.receiptImage)} className="ml-2 text-brand-500 hover:text-brand-700" title="Xem hóa đơn">🖼️</button>
                                                                 )}
