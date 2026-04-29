@@ -94,6 +94,7 @@
             // THÊM: Các state dùng cho chức năng tìm kiếm và hiển thị đơn vị
             const [searchDashboard, setSearchDashboard] = useState('');
             const [searchInventory, setSearchInventory] = useState('');
+            const [searchRecipeMaterial, setSearchRecipeMaterial] = useState('');
             const [selectedMaterialIdForPurchase, setSelectedMaterialIdForPurchase] = useState('');
 
             const [scriptUrl, setScriptUrl] = useState(localStorage.getItem('tg_script_url') || '');
@@ -558,9 +559,21 @@
                                             </div>
 
                                             <div>
-                                                <p className="text-[10px] md:text-xs font-bold text-slate-400 mb-3 block uppercase tracking-wider">Chọn vật tư cấu thành:</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {[...materials].sort((a, b) => a.name.localeCompare(b.name)).map(m => (<button type="button" key={m.id} onClick={() => setNewProduct({...newProduct, recipe: [...newProduct.recipe, { materialId: m.id, name: m.name, amount: 0, costValue: 0, inputType: 'quantity', unit: m.unit }]})} className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-100 text-[10px] md:text-xs font-bold rounded-lg hover:bg-brand-500 hover:text-white transition shadow-sm">+ {m.name}</button>))}
+                                                <div className="flex justify-between items-center mb-3 gap-2">
+                                                    <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider mb-0">Chọn vật tư cấu thành:</p>
+                                                    <input type="text" placeholder="🔍 Tìm vật tư..." value={searchRecipeMaterial} onChange={(e) => setSearchRecipeMaterial(e.target.value)} className="px-3 py-1.5 text-[10px] md:text-xs border border-slate-200 rounded-lg outline-none focus:border-brand-500 w-32 md:w-48 bg-white" />
+                                                </div>
+                                                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar p-1 -m-1">
+                                                    {[...materials]
+                                                        .filter(m => m.name.toLowerCase().includes(searchRecipeMaterial.toLowerCase()))
+                                                        .sort((a, b) => a.name.localeCompare(b.name))
+                                                        .map(m => (
+                                                            <button type="button" key={m.id} onClick={() => {
+                                                                setNewProduct({...newProduct, recipe: [...newProduct.recipe, { materialId: m.id, name: m.name, amount: 0, costValue: 0, inputType: 'quantity', unit: m.unit }]});
+                                                                setSearchRecipeMaterial(''); // Tự động xóa ô tìm kiếm sau khi chọn xong để chọn món khác
+                                                            }} className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-100 text-[10px] md:text-xs font-bold rounded-lg hover:bg-brand-500 hover:text-white transition shadow-sm">+ {m.name}</button>
+                                                    ))}
+                                                    {materials.filter(m => m.name.toLowerCase().includes(searchRecipeMaterial.toLowerCase())).length === 0 && <p className="text-[10px] text-slate-400 italic w-full">Không tìm thấy vật tư phù hợp</p>}
                                                 </div>
                                             </div>
                                         </div>
