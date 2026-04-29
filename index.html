@@ -407,8 +407,8 @@
                         </header>
 
                         <div className="flex-1 overflow-y-auto w-full relative">
-                            {activeTab === 'dashboard' && <DashboardView />}
-                            {activeTab === 'settings' && <SettingsView />}
+                            {activeTab === 'dashboard' && DashboardView()}
+                            {activeTab === 'settings' && SettingsView()}
 
                             {activeTab === 'inventory' && (
                                 <div className="p-4 md:p-10 grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-10 max-w-full">
