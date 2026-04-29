@@ -390,8 +390,17 @@
                             <button onClick={() => switchTab('products')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all font-semibold text-left text-sm md:text-base ${activeTab === 'products' ? 'nav-active' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span>📈 Định mức</span></button>
                             <button onClick={() => switchTab('settings')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all font-semibold text-left text-sm md:text-base ${activeTab === 'settings' ? 'nav-active' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span>⚙️ Cài đặt</span></button>
                         </nav>
-                        <div className="p-4 text-[9px] md:text-[10px] font-bold text-slate-500 text-center border-t border-slate-800/50 tracking-widest uppercase bg-slate-900 z-10">
-                            {isSaving ? <span className="text-brand-500 animate-pulse">Đang lưu mây...</span> : <span>Đã đồng bộ ✓</span>}
+                        <div className="p-4 border-t border-slate-800/50 bg-slate-900 z-10 flex justify-center">
+                            <button 
+                                onClick={() => {
+                                    notify("Đang ép đồng bộ lên mây...");
+                                    syncData(materials, purchases, products);
+                                }} 
+                                disabled={isSaving}
+                                className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${isSaving ? 'text-brand-500 animate-pulse cursor-not-allowed' : 'text-slate-400 hover:text-white cursor-pointer'}`}
+                            >
+                                {isSaving ? '⏳ Đang lưu...' : '🔄 Đồng bộ ngay'}
+                            </button>
                         </div>
                     </aside>
 
